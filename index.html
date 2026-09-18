@@ -1058,11 +1058,9 @@ function renderAssignGrid(room){
       const stu = seatAssign[key];
       const num = numbers[key];
       const isAssignable = num && type!=='unseatable';
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : type==='unseatable' ? 'unseatable' : (stu?comboClass(stu.combo):''));
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
-      if (type==='unseatable') {
-        div.innerHTML = `<span class="sn">${num}</span><span class="ub-label">착석불가</span>`;
-      } else if (isAssignable) {
+      if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         div.onclick = () => onSeatClick(key);
         div.draggable = true;
@@ -1082,6 +1080,8 @@ function renderAssignGrid(room){
           selectedSeatKey = null;
           renderAssignGrid(rooms[currentAssignRoom]);
         };
+      } else if (type==='unseatable') {
+        div.innerHTML = `<span class="sn">${num}</span>`; // 학생용 화면에서는 평범한 책상처럼만 표시 (빈 자리)
       } else {
         div.innerHTML = type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '';
       }
