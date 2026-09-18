@@ -63,6 +63,9 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 .admin-menu-item:hover{background:var(--surface2)}
 .seat.unusable{background:repeating-linear-gradient(45deg,#ddd,#ddd 4px,#f5f5f5 4px,#f5f5f5 8px);cursor:pointer;border-style:dashed;color:var(--text3);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.aisle{background:repeating-linear-gradient(135deg,#e0f0ee,#e0f0ee 4px,#f5fbfa 4px,#f5fbfa 8px);cursor:pointer;border-style:dotted;color:var(--accent2);font-size:10px;display:flex;align-items:center;justify-content:center}
+.seat.unseatable{background:repeating-linear-gradient(45deg,#fde2e1,#fde2e1 4px,#fff5f5 4px,#fff5f5 8px);border-color:var(--red);cursor:pointer}
+.seat.unseatable .sn{background:var(--red)}
+.seat.unseatable .ub-label{color:var(--red);font-size:9px;font-weight:700}
 .seat.sel{outline:2px solid var(--accent2);outline-offset:1px}
 .seat.dragging{opacity:.4}
 .seat.drag-over{outline:2px dashed var(--accent);outline-offset:1px;background:rgba(43,173,160,.08)}
@@ -83,6 +86,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   .seat.blank{background:#ddd}
   .seat.unusable{background:#ddd}
   .seat.aisle{background:#eef7f6}
+  .seat.unseatable{background:#fde2e1}
 }
 </style>
 </head>
@@ -192,17 +196,15 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     <div class="row" style="align-items:center;margin-top:4px">
       <label style="font-size:12px"><input type="radio" name="numdir" value="row" checked onchange="renderRoomGrid()"> 가로</label>
       <label style="font-size:12px"><input type="radio" name="numdir" value="col" onchange="renderRoomGrid()"> 세로</label>
-      <span style="width:1px;height:16px;background:var(--border)"></span>
-      <label style="font-size:12px"><input type="checkbox" id="inc-unusable" onchange="renderRoomGrid()"> 비사용 포함</label>
-      <label style="font-size:12px"><input type="checkbox" id="inc-aisle" onchange="renderRoomGrid()"> 통로 포함</label>
     </div>
 
     <div class="row" style="align-items:center;margin-top:10px">
       <span style="font-size:12px;color:var(--text2);font-weight:600">칠하기 모드:</span>
       <label style="font-size:12px"><input type="radio" name="paintmode" value="unusable" checked> 비사용</label>
       <label style="font-size:12px"><input type="radio" name="paintmode" value="aisle"> 통로</label>
+      <label style="font-size:12px"><input type="radio" name="paintmode" value="unseatable"> 착석불가</label>
     </div>
-    <div class="notice notice-info" style="margin-top:8px">그리드에서 자리를 클릭하면 위에서 고른 모드(비사용/통로)로 칠해지고, 다시 클릭하면 좌석으로 되돌아옵니다. 번호는 비사용·통로 칸을 건너뛰고 매겨져요. "포함" 체크박스는 그 유형을 좌석처럼 다시 셀지 여부예요 (예: 이번 시험엔 통로도 좌석으로 쓸 때).</div>
+    <div class="notice notice-info" style="margin-top:8px">그리드에서 자리를 클릭하면 위에서 고른 모드로 칠해지고, 다시 클릭하면 좌석으로 되돌아옵니다.<br>· <b>비사용/통로</b>: 책상 자체가 없는 자리 — 번호도 매겨지지 않고 배정에서 제외돼요.<br>· <b>착석불가</b>: 책상은 있지만 앉을 수 없는 자리 — 번호는 그대로 유지되고, 좌석배정에서만 제외돼요.</div>
 
     <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveRoom()">저장</button>
     <span id="room-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
@@ -663,8 +665,7 @@ function startNewRoom(){
   document.getElementById('room-rows').value = 14;
   document.getElementById('room-cols').value = 8;
   document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value==='row'));
-  document.getElementById('inc-unusable').checked = false;
-  document.getElementById('inc-aisle').checked = false;
+  document.querySelectorAll('input[name=paintmode]').forEach(el => el.checked = (el.value==='unusable'));
   editorCellTypes = {};
   document.getElementById('room-status').textContent = '';
   renderRoomList();
@@ -698,8 +699,8 @@ function loadRoomIntoEditor(name){
   renderRoomGrid();
 }
 
-// 좌석 번호 계산: 비사용/통로(포함 체크 안 된 것만)는 건너뛰고, 선택한 방향(가로/세로)대로 순서대로 번호를 매김
-function computeSeatNumbers(rows, cols, cellTypes, numberDir, includeUnusable, includeAisle){
+// 좌석 번호 계산: 비사용/통로는 항상 건너뛰고(번호 없음), 착석불가는 번호를 그대로 매김. 선택한 방향(가로/세로) 순서대로 매김
+function computeSeatNumbers(rows, cols, cellTypes, numberDir){
   const numbers = {};
   const order = [];
   if (numberDir === 'col') {
@@ -710,8 +711,8 @@ function computeSeatNumbers(rows, cols, cellTypes, numberDir, includeUnusable, i
   let n = 0;
   order.forEach(key => {
     const type = cellTypes[key];
-    const isSeat = !type || (type==='unusable' && includeUnusable) || (type==='aisle' && includeAisle);
-    if (isSeat) { n++; numbers[key] = n; }
+    const isNumbered = !type || type==='unseatable'; // 착석불가는 책상이라 번호 유지, 비사용/통로는 번호 없음
+    if (isNumbered) { n++; numbers[key] = n; }
   });
   return numbers;
 }
@@ -734,9 +735,7 @@ function renderRoomGrid(){
   const rows = parseInt(document.getElementById('room-rows').value)||1;
   const cols = parseInt(document.getElementById('room-cols').value)||1;
   const numberDir = document.querySelector('input[name=numdir]:checked').value;
-  const includeUnusable = document.getElementById('inc-unusable').checked;
-  const includeAisle = document.getElementById('inc-aisle').checked;
-  const numbers = computeSeatNumbers(rows, cols, editorCellTypes, numberDir, includeUnusable, includeAisle);
+  const numbers = computeSeatNumbers(rows, cols, editorCellTypes, numberDir);
   const wrap = document.getElementById('room-grid-preview');
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
@@ -747,8 +746,12 @@ function renderRoomGrid(){
       const type = editorCellTypes[key];
       const div = document.createElement('div');
       const num = numbers[key];
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : '');
-      div.innerHTML = num ? `<span class="sn">${num}</span>` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : type==='unseatable' ? 'unseatable' : '');
+      if (type==='unseatable') {
+        div.innerHTML = `<span class="sn">${num}</span><span class="ub-label">착석불가</span>`;
+      } else {
+        div.innerHTML = num ? `<span class="sn">${num}</span>` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
+      }
       div.onclick = () => {
         const mode = document.querySelector('input[name=paintmode]:checked').value;
         if (editorCellTypes[key] === mode) delete editorCellTypes[key];
@@ -1046,7 +1049,7 @@ function renderAssignGrid(room){
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
   grid.style.gridTemplateColumns = `repeat(${room.cols}, 64px)`;
-  const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row', false, false);
+  const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row');
   for (let r=1;r<=room.rows;r++){
     for (let c=1;c<=room.cols;c++){
       const key = `${r}_${c}`;
@@ -1054,9 +1057,12 @@ function renderAssignGrid(room){
       const div = document.createElement('div');
       const stu = seatAssign[key];
       const num = numbers[key];
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : (stu?comboClass(stu.combo):''));
+      const isAssignable = num && type!=='unseatable';
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : type==='unseatable' ? 'unseatable' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
-      if (num) {
+      if (type==='unseatable') {
+        div.innerHTML = `<span class="sn">${num}</span><span class="ub-label">착석불가</span>`;
+      } else if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         div.onclick = () => onSeatClick(key);
         div.draggable = true;
