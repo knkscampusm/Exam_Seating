@@ -345,16 +345,24 @@ function toggleAdmin(){
   }
 }
 
+let _adminMenuJustOpened = false;
 function toggleAdminMenu(e){
   if (e) e.stopPropagation();
-  document.getElementById('admin-menu-pop').style.display =
-    document.getElementById('admin-menu-pop').style.display === 'none' ? '' : 'none';
+  const pop = document.getElementById('admin-menu-pop');
+  const willOpen = (pop.style.display === 'none' || pop.style.display === '');
+  pop.style.display = willOpen ? 'block' : 'none';
+  if (willOpen) {
+    _adminMenuJustOpened = true;
+    setTimeout(() => { _adminMenuJustOpened = false; }, 50);
+  }
 }
 function closeAdminMenu(){ document.getElementById('admin-menu-pop').style.display = 'none'; }
 document.addEventListener('click', e => {
+  if (_adminMenuJustOpened) return;
   const pop = document.getElementById('admin-menu-pop');
   if (pop && pop.style.display !== 'none' && !e.target.closest('#admin-menu-wrap')) closeAdminMenu();
 });
+
 
 // ── 탐구 과목 분류 (수능 탐구 과목명 기준) ──
 const SCI_SUBJECTS = ['물리학1','물리학2','화학1','화학2','생명과학1','생명과학2','지구과학1','지구과학2'];
