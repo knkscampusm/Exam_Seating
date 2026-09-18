@@ -31,7 +31,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .s-sub{color:var(--text2);font-size:12px;line-height:1.7;margin-bottom:16px}
 select,input[type=text],input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 11px;border-radius:8px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s}
 select:focus,input:focus{border-color:var(--accent);background:#fff}
-label.field-label{display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px}
+.field-label{display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px}
+.seg-group{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg-group label{padding:6px 14px;font-size:12px;cursor:pointer;background:var(--surface);color:var(--text2);border-right:1px solid var(--border);transition:background .15s,color .15s}
+.seg-group label:last-child{border-right:none}
+.seg-group input{display:none}
+.seg-group label:has(input:checked){background:var(--accent);color:#fff;font-weight:600}
 .field{margin-bottom:12px}
 .btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
@@ -185,30 +190,37 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   </div>
 
   <div class="card">
-    <div class="row">
-      <div class="field"><label class="field-label">강의실 이름</label><input type="text" id="room-name" placeholder="예: 101호"></div>
-      <div class="field"><label class="field-label">행</label><input type="number" id="room-rows" value="14" min="1"></div>
-      <div style="align-self:flex-end;padding-bottom:9px;font-weight:700;color:var(--text3)">X</div>
-      <div class="field"><label class="field-label">열</label><input type="number" id="room-cols" value="8" min="1"></div>
-      <div style="align-self:flex-end"><button class="btn btn-ghost btn-sm" onclick="generateRoomGrid()">생성</button></div>
+    <div class="row" style="align-items:flex-end;gap:10px">
+      <div class="field" style="flex:2;min-width:160px"><label class="field-label">강의실 이름</label><input type="text" id="room-name" placeholder="예: 101호" style="width:100%"></div>
+      <div class="field" style="width:90px"><label class="field-label">행</label><input type="number" id="room-rows" value="14" min="1" style="width:100%"></div>
+      <div style="padding-bottom:9px;font-weight:700;color:var(--text3)">×</div>
+      <div class="field" style="width:90px"><label class="field-label">열</label><input type="number" id="room-cols" value="8" min="1" style="width:100%"></div>
+      <button class="btn btn-primary btn-sm" onclick="generateRoomGrid()">그리드 생성</button>
     </div>
 
-    <div class="row" style="align-items:center;margin-top:4px">
-      <label style="font-size:12px"><input type="radio" name="numdir" value="row" checked onchange="renderRoomGrid()"> 가로</label>
-      <label style="font-size:12px"><input type="radio" name="numdir" value="col" onchange="renderRoomGrid()"> 세로</label>
+    <div class="row" style="align-items:center;gap:18px;margin-top:16px">
+      <div>
+        <div class="field-label" style="margin-bottom:6px">번호 방향</div>
+        <div class="seg-group">
+          <label><input type="radio" name="numdir" value="row" checked onchange="renderRoomGrid()">가로</label>
+          <label><input type="radio" name="numdir" value="col" onchange="renderRoomGrid()">세로</label>
+        </div>
+      </div>
+      <div>
+        <div class="field-label" style="margin-bottom:6px">칠하기 모드</div>
+        <div class="seg-group">
+          <label><input type="radio" name="paintmode" value="unusable" checked>비사용</label>
+          <label><input type="radio" name="paintmode" value="aisle">통로</label>
+          <label><input type="radio" name="paintmode" value="unseatable">착석불가</label>
+        </div>
+      </div>
     </div>
 
-    <div class="row" style="align-items:center;margin-top:10px">
-      <span style="font-size:12px;color:var(--text2);font-weight:600">칠하기 모드:</span>
-      <label style="font-size:12px"><input type="radio" name="paintmode" value="unusable" checked> 비사용</label>
-      <label style="font-size:12px"><input type="radio" name="paintmode" value="aisle"> 통로</label>
-      <label style="font-size:12px"><input type="radio" name="paintmode" value="unseatable"> 착석불가</label>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-primary btn-sm" onclick="saveRoom()">저장</button>
+      <span id="room-status" style="font-size:12px;color:var(--text2)"></span>
     </div>
-    <div class="notice notice-info" style="margin-top:8px">그리드에서 자리를 클릭하면 위에서 고른 모드로 칠해지고, 다시 클릭하면 좌석으로 되돌아옵니다.<br>· <b>비사용/통로</b>: 책상 자체가 없는 자리 — 번호도 매겨지지 않고 배정에서 제외돼요.<br>· <b>착석불가</b>: 책상은 있지만 앉을 수 없는 자리 — 번호는 그대로 유지되고, 좌석배정에서만 제외돼요.</div>
-
-    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveRoom()">저장</button>
-    <span id="room-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
-    <div class="grid-wrap" id="room-grid-preview" style="margin-top:10px"></div>
+    <div class="grid-wrap" id="room-grid-preview" style="margin-top:14px"></div>
   </div>
 </div>
 
