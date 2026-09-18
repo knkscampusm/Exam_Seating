@@ -64,6 +64,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 .grid-wrap{overflow:auto;padding:10px;border:1px solid var(--border);border-radius:10px;background:#fafafa}
 .seat-grid{display:inline-grid;gap:4px}
 .seat{width:64px;height:44px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center;line-height:1.3;position:relative}
+.seat.gap{width:20px;height:14px;border:none;border-radius:3px;background:#fafafa;justify-self:center;align-self:center;cursor:default}
 .seat.blank{background:repeating-linear-gradient(45deg,#eee,#eee 4px,#fafafa 4px,#fafafa 8px);cursor:default;border-style:dashed}
 .admin-menu-item{display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:transparent;font-family:inherit;font-size:13px;border-radius:7px;cursor:pointer}
 .admin-menu-item:hover{background:var(--surface2)}
@@ -93,6 +94,10 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   .seat.unusable{background:#ddd}
   .seat.aisle{background:#eef7f6}
   .seat.unseatable{background:#fde2e1}
+  body.printing-all>*:not(#print-all-container){display:none!important}
+  body.printing-all #print-all-container{display:block!important}
+  .print-room-page{page-break-after:always;padding:14mm}
+  .print-room-page:last-child{page-break-after:auto}
 }
 </style>
 </head>
@@ -106,7 +111,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div style="margin-left:auto;display:flex;gap:6px;align-items:center;position:relative">
     <input type="text" id="student-search-input" placeholder="학번 또는 이름 검색" style="width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px" onkeydown="if(event.key==='Enter')searchStudentSeat()">
     <button class="btn btn-ghost btn-sm" onclick="searchStudentSeat()">🔍 검색</button>
-    <button class="btn btn-ghost btn-sm" onclick="openSnapshotModal()">📚 지난배치</button>
+    <button class="btn btn-ghost btn-sm" onclick="openPrintModal()">🖨️ 인쇄</button>
     <span id="admin-menu-wrap" style="position:relative;display:none">
       <button class="btn btn-ghost btn-sm" onclick="toggleAdminMenu(event)">⚙ 관리자 메뉴 ▾</button>
       <div id="admin-menu-pop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);min-width:200px;padding:5px;z-index:1000">
@@ -202,7 +207,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div class="s-title">좌석 배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
   <div class="s-sub admin-only" style="display:none">규칙: 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채워 배치합니다. 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
   <button class="btn btn-primary admin-only" style="display:none" onclick="autoAssign()">자동배치 실행</button>
-  <button class="btn btn-ghost" onclick="window.print()">🖨️ 인쇄</button>
   <button class="btn btn-ghost admin-only" style="display:none" onclick="clearSelection()">선택 취소</button>
 
   <div id="assign-summary" class="summary-bar" style="display:none"></div>
@@ -231,16 +235,33 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 
 </div>
 
-<!-- MODAL: 지난배치 스냅샷 -->
-<div class="modal-overlay" id="snapshot-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:560px;max-width:92vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-size:15px;font-weight:700">📚 지난 배치</div>
-      <button onclick="document.getElementById('snapshot-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+<!-- MODAL: 인쇄 -->
+<div class="modal-overlay" id="print-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:480px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700">🖨️ 인쇄 / PDF 다운로드</div>
+      <button onclick="closePrintModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
     </div>
-    <div id="snapshot-list" style="font-size:12px"></div>
+    <div class="field-label">인쇄할 강의실</div>
+    <div style="display:flex;gap:6px;margin:6px 0 8px">
+      <button class="btn btn-ghost btn-xs" onclick="toggleAllPrintChecks(true)">전체 선택</button>
+      <button class="btn btn-ghost btn-xs" onclick="toggleAllPrintChecks(false)">전체 해제</button>
+    </div>
+    <div id="print-room-checklist" style="display:flex;flex-wrap:wrap;gap:8px 14px;max-height:150px;overflow-y:auto;padding:8px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"></div>
+    <div class="field-label">출력 버전</div>
+    <div class="seg-group" style="margin-top:6px;margin-bottom:14px">
+      <label><input type="radio" name="print-version" value="title" checked>시험명만</label>
+      <label><input type="radio" name="print-version" value="title-count">시험명 + 응시인원</label>
+    </div>
+    <div class="s-sub" style="margin-bottom:0">인쇄 대화상자에서 "PDF로 저장"을 고르면 파일로도 받을 수 있어요. 강의실 하나당 한 페이지로 나가고, 잘리지 않게 자동으로 맞춰져요.</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost btn-sm" onclick="closePrintModal()">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="executePrint()">인쇄</button>
+    </div>
   </div>
 </div>
+
+<div id="print-all-container" style="display:none"></div>
 
 <!-- MODAL: 배치 저장 -->
 <div class="modal-overlay" id="save-snapshot-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
@@ -985,45 +1006,78 @@ async function confirmSaveSnapshot(){
   } catch(e) { statusEl.textContent = '저장 실패: ' + e.message; }
 }
 
-async function openSnapshotModal(){
-  const listEl = document.getElementById('snapshot-list');
-  listEl.innerHTML = '불러오는 중...';
-  document.getElementById('snapshot-modal').style.display = 'flex';
-  if (!db) { listEl.innerHTML = 'Firebase 연결 안됨'; return; }
-  try {
-    const snap = await db.collection('examSeatingSnapshots').orderBy('savedAt','desc').limit(30).get();
-    if (snap.empty) { listEl.innerHTML = '<div style="color:var(--text3)">저장된 배치가 없습니다.</div>'; return; }
-    listEl.innerHTML = snap.docs.map(d => {
-      const data = d.data();
-      const roomNames = Object.keys(data.rooms||{});
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-        <div>
-          <div style="font-weight:600">${data.name}</div>
-          <div style="color:var(--text3);font-size:11px">${data.savedAtStr||''} · 강의실 ${roomNames.length}개</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="loadSnapshot('${d.id}')">불러오기</button>
-      </div>`;
-    }).join('');
-  } catch(e) { listEl.innerHTML = '불러오기 실패: ' + e.message; }
+function openPrintModal(){
+  const el = document.getElementById('print-room-checklist');
+  const names = Object.keys(rooms);
+  el.innerHTML = names.map(n=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" class="print-room-check" value="${n}" checked> ${n}</label>`).join('') || '<div style="color:var(--text3);font-size:12px">강의실이 없습니다</div>';
+  document.getElementById('print-modal').style.display = 'flex';
+}
+function closePrintModal(){ document.getElementById('print-modal').style.display = 'none'; }
+function toggleAllPrintChecks(v){ document.querySelectorAll('.print-room-check').forEach(cb=>cb.checked=v); }
+
+function buildRoomPrintHTML(roomName, version){
+  const room = rooms[roomName];
+  if (!room) return '';
+  const seatAssign = seatAssignByRoom[roomName] || {};
+  const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row');
+  let cellsHtml = '';
+  for (let r=1;r<=room.rows;r++){
+    for (let c=1;c<=room.cols;c++){
+      const key = `${r}_${c}`;
+      const type = (room.cellTypes||{})[key];
+      const num = numbers[key];
+      const stu = seatAssign[key];
+      const isAssignable = num && type!=='unseatable';
+      let cls = 'seat';
+      let inner = '';
+      if (type==='unusable') { cls += ' unusable'; inner = '비사용'; }
+      else if (type==='aisle') { cls += ' gap'; }
+      else if (isAssignable) {
+        if (stu) cls += ' ' + comboClass(stu.combo);
+        inner = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
+      } else if (type==='unseatable') {
+        inner = `<span class="sn">${num}</span>`;
+      }
+      cellsHtml += `<div class="${cls}">${inner}</div>`;
+    }
+  }
+  const examName = (selectedExam && selectedExam.name) || '';
+  const assignedCount = Object.values(seatAssign).length;
+  const countLine = version==='title-count' ? `<div style="font-size:13px;color:var(--text2);margin-top:2px">응시 인원 ${assignedCount}명</div>` : '';
+  return `<div class="print-room-page">
+    <div style="font-size:18px;font-weight:800;margin-bottom:2px">${roomName}</div>
+    ${examName?`<div style="font-size:14px;color:var(--accent2);font-weight:600">${examName}</div>`:''}
+    ${countLine}
+    <div class="seat-grid" style="grid-template-columns:repeat(${room.cols}, 64px);margin-top:12px">${cellsHtml}</div>
+  </div>`;
 }
 
-async function loadSnapshot(id){
-  if (!confirm('현재 화면의 배치 위에 이 스냅샷을 덮어씁니다. 계속할까요?')) return;
-  try {
-    const doc = await db.collection('examSeatingSnapshots').doc(id).get();
-    if (!doc.exists) { alert('스냅샷을 찾을 수 없습니다'); return; }
-    const data = doc.data();
-    Object.entries(data.rooms||{}).forEach(([rn, rdata]) => {
-      rooms[rn] = { rows: rdata.rows, cols: rdata.cols, cuts: rdata.cuts||[], cellTypes: rdata.cellTypes||{}, numberDir: rdata.numberDir||'row' };
-      seatAssignByRoom[rn] = rdata.seatAssign || {};
-      unplacedByRoom[rn] = [];
+function executePrint(){
+  const checked = [...document.querySelectorAll('.print-room-check:checked')].map(cb=>cb.value);
+  if (!checked.length) { alert('강의실을 하나 이상 선택해주세요'); return; }
+  const version = document.querySelector('input[name=print-version]:checked').value;
+  const container = document.getElementById('print-all-container');
+  container.innerHTML = checked.map(rn => buildRoomPrintHTML(rn, version)).join('');
+  closePrintModal();
+  document.body.classList.add('printing-all');
+  requestAnimationFrame(() => {
+    const A4W = 740, A4H = 1000;
+    document.querySelectorAll('.print-room-page').forEach(page => {
+      const grid = page.querySelector('.seat-grid');
+      if (!grid) return;
+      const rawW = grid.scrollWidth;
+      const rawH = grid.scrollHeight + 70;
+      const scale = Math.min(1, A4W/rawW, A4H/rawH);
+      if (scale < 0.999) page.style.zoom = scale.toFixed(3);
     });
-    document.getElementById('snapshot-modal').style.display = 'none';
-    renderHeaderRoomTabs();
-    const first = Object.keys(data.rooms||{})[0];
-    if (first) selectRoomTab(first);
-    alert(`"${data.name}" 배치를 불러왔습니다.`);
-  } catch(e) { alert('불러오기 실패: ' + e.message); }
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-all');
+        container.innerHTML = '';
+      }, 500);
+    }, 100);
+  });
 }
 
 function renderStats(){
@@ -1196,7 +1250,7 @@ function renderAssignGrid(room){
       const stu = seatAssign[key];
       const num = numbers[key];
       const isAssignable = num && type!=='unseatable';
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : (stu?comboClass(stu.combo):''));
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
       if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
