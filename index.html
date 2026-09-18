@@ -108,6 +108,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     <span id="admin-menu-wrap" style="position:relative;display:none">
       <button class="btn btn-ghost btn-sm" onclick="toggleAdminMenu(event)">⚙ 관리자 메뉴 ▾</button>
       <div id="admin-menu-pop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);min-width:200px;padding:5px;z-index:1000">
+        <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('import')">📋 모의고사 설정</button>
         <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('import')">📤 데이터 가져오기</button>
         <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('room')">🏛 강의실 설정</button>
         <button class="admin-menu-item" onclick="closeAdminMenu();openSaveSnapshotPrompt()">💾 현재 배치 저장</button>
@@ -239,7 +240,8 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <div class="modal-overlay" id="save-snapshot-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
     <div style="font-size:15px;font-weight:700;margin-bottom:12px">💾 현재 배치 저장</div>
-    <div class="field"><label class="field-label">저장 이름</label><input type="text" id="snapshot-name" style="width:100%" placeholder="예: 9월 더프리미엄 모의고사"></div>
+    <div class="field"><label class="field-label">저장할 모의고사</label><select id="snapshot-exam-select" style="width:100%"></select></div>
+    <div class="s-sub" style="margin-top:6px">등록된 모의고사가 없으면 먼저 관리자 메뉴 → 📋 모의고사 설정에서 추가해주세요.</div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('save-snapshot-modal').style.display='none'">취소</button>
       <button class="btn btn-primary btn-sm" onclick="confirmSaveSnapshot()">저장</button>
@@ -854,16 +856,22 @@ function selectStatsTab(){
 
 // ── 지난 배치 스냅샷 ──
 function openSaveSnapshotPrompt(){
-  const nameInput = document.getElementById('snapshot-name');
-  nameInput.value = (selectedExam && selectedExam.name) ? selectedExam.name : '';
+  const sel = document.getElementById('snapshot-exam-select');
+  const names = Object.keys(exams);
+  if (!names.length) {
+    sel.innerHTML = '<option value="">등록된 모의고사가 없습니다</option>';
+  } else {
+    sel.innerHTML = names.map(n => `<option value="${n}">${n}${exams[n].date?` (${exams[n].date})`:''}</option>`).join('');
+    if (selectedExam && names.includes(selectedExam.name)) sel.value = selectedExam.name;
+  }
   document.getElementById('save-snapshot-status').textContent = '';
   document.getElementById('save-snapshot-modal').style.display = 'flex';
 }
 
 async function confirmSaveSnapshot(){
   const statusEl = document.getElementById('save-snapshot-status');
-  const name = document.getElementById('snapshot-name').value.trim();
-  if (!name) { statusEl.textContent = '이름을 입력해주세요'; return; }
+  const name = document.getElementById('snapshot-exam-select').value;
+  if (!name) { statusEl.textContent = '모의고사를 먼저 등록/선택해주세요'; return; }
   if (!db) { statusEl.textContent = 'Firebase 연결 안됨'; return; }
   statusEl.textContent = '저장 중...';
   try {
