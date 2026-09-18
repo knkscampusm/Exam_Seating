@@ -145,14 +145,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 2: ROOM SETUP -->
 <div class="panel" id="panel-room">
   <div class="s-title">강의실 배치 설정</div>
-  <div class="s-sub">행/열 수와 분단(남녀 분리 단위) 경계를 정하고, 사용하지 않는 자리는 클릭해서 빈자리로 표시하세요. 정확한 배치표를 받으면 다시 여기서 수정하시면 됩니다.</div>
-
-  <div class="card" style="margin-bottom:12px">
-    <div class="s-title" style="font-size:13px">기본 강의실 일괄 생성 (101~104호, 201~204호, S01호, S02호)</div>
-    <div class="s-sub">101~104/201~204호는 8열×20행(좌4/우4 분단), S01호는 7행×10열(홀수열만 좌석, 짝수열은 통로), S02호는 20행×12열(3열 단위 2석+통로 반복)로 생성됩니다. 실제 통로·기둥 위치는 방을 선택해 미리보기에서 직접 클릭해 조정해주세요. <b>F01호는 뒤로 갈수록 좌석이 줄어드는 사다리꼴 모양이라 이 방식으로는 정확히 만들기 어려워요</b> — 아래에서 별도로 설명드릴게요.</div>
-    <button class="btn btn-ghost btn-sm" onclick="bulkCreateRooms()">기본 강의실 10개 일괄 생성</button>
-    <span id="bulk-room-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
-  </div>
+  <div class="s-sub">행/열 수와 분단(남녀 분리 단위) 경계를 정하고, 사용하지 않는 자리는 클릭해서 빈자리로 표시하세요. 정확한 배치표를 받으면 다시 여기서 수정하시면 됩니다. (101~104/201~204/S01/S02호는 처음 접속 시 자동으로 기본 틀이 만들어져 있어요. F01호는 사다리꼴 구조라 자동생성 대상에서 빠져있으니 직접 만들어주세요.)</div>
 
   <div class="room-list" id="room-list"></div>
 
@@ -499,6 +492,10 @@ async function loadRoomList(){
       const data = d.data();
       rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], blanks:new Set(data.blanks||[]) };
     });
+    if (snap.empty) {
+      await bulkCreateRooms(true);
+      return; // bulkCreateRooms가 loadRoomList를 다시 호출함
+    }
   } catch(e){ console.error(e); }
   renderRoomList();
 }
@@ -581,9 +578,9 @@ const ROOM_PRESETS = ['101호','102호','103호','104호','201호','202호','203
 })();
 
 
-async function bulkCreateRooms(){
+async function bulkCreateRooms(silent){
   const statusEl = document.getElementById('bulk-room-status');
-  statusEl.textContent = '생성 중...';
+  if (statusEl) statusEl.textContent = '생성 중...';
   let created = 0, skipped = 0;
   for (const preset of ROOM_PRESETS){
     try {
@@ -596,7 +593,7 @@ async function bulkCreateRooms(){
       created++;
     } catch(e) { console.error(preset.name, e); }
   }
-  statusEl.textContent = `✓ ${created}개 생성, ${skipped}개는 이미 있어 건너뜀`;
+  if (statusEl) statusEl.textContent = `✓ ${created}개 생성, ${skipped}개는 이미 있어 건너뜀`;
   await loadRoomList();
 }
 
