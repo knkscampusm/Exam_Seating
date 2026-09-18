@@ -18,6 +18,7 @@
 }
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.subbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:42px;display:flex;align-items:center;position:sticky;top:52px;z-index:99;overflow-x:auto}
 .logo{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:-0.3px;white-space:nowrap}
 .tabs{display:flex;gap:2px}
 .tab{padding:6px 16px;border-radius:6px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;border:1px solid transparent;white-space:nowrap}
@@ -32,8 +33,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 select,input[type=text],input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 11px;border-radius:8px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s}
 select:focus,input:focus{border-color:var(--accent);background:#fff}
 .field-label{display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px}
-.seg-group{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.seg-group label{padding:6px 14px;font-size:12px;cursor:pointer;background:var(--surface);color:var(--text2);border-right:1px solid var(--border);transition:background .15s,color .15s}
+.seg-group{display:inline-flex;height:34px;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg-group label{display:flex;align-items:center;padding:0 14px;font-size:12px;cursor:pointer;background:var(--surface);color:var(--text2);border-right:1px solid var(--border);transition:background .15s,color .15s}
 .seg-group label:last-child{border-right:none}
 .seg-group input{display:none}
 .seg-group label:has(input:checked){background:var(--accent);color:#fff;font-weight:600}
@@ -99,11 +100,12 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 
 <div class="header no-print">
   <div class="logo">📋 모의고사 좌석배치</div>
-  <div class="tabs" id="header-tabs">
-    <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
-    <div id="room-tabs-header" style="display:flex;gap:2px"></div>
-  </div>
+  <select id="exam-view-select" style="min-width:220px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px" onchange="onExamViewChange(this.value)">
+    <option value="">모의고사를 선택하세요</option>
+  </select>
   <div style="margin-left:auto;display:flex;gap:6px;align-items:center;position:relative">
+    <input type="text" id="student-search-input" placeholder="학번 또는 이름 검색" style="width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px" onkeydown="if(event.key==='Enter')searchStudentSeat()">
+    <button class="btn btn-ghost btn-sm" onclick="searchStudentSeat()">🔍 검색</button>
     <button class="btn btn-ghost btn-sm" onclick="openSnapshotModal()">📚 지난배치</button>
     <span id="admin-menu-wrap" style="position:relative;display:none">
       <button class="btn btn-ghost btn-sm" onclick="toggleAdminMenu(event)">⚙ 관리자 메뉴 ▾</button>
@@ -118,6 +120,13 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   </div>
 </div>
 
+<div class="subbar no-print">
+  <div class="tabs" id="header-tabs">
+    <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
+    <div id="room-tabs-header" style="display:flex;gap:2px"></div>
+  </div>
+</div>
+
 <div class="main">
 
 <!-- TAB 1: IMPORT -->
@@ -125,13 +134,10 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div class="s-title">모의고사 선택</div>
   <div class="s-sub">먼저 이번에 배치할 모의고사를 선택(또는 새로 등록)하세요. <b>필수</b> — 선택해야 다음 단계(데이터 가져오기)가 가능합니다. 시험일은 학생 등원일과 비교하는 데 쓰입니다.</div>
   <div class="card">
-    <div class="room-list" id="exam-list"></div>
-    <div class="row">
-      <div class="field"><label class="field-label">새 모의고사 이름</label><input type="text" id="exam-name" placeholder="예: 2027학년도 9월 더프리미엄 모의고사"></div>
-      <div class="field"><label class="field-label">시험일</label><input type="date" id="exam-date"></div>
+    <div class="row" style="align-items:flex-end">
+      <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
+      <button class="btn btn-primary btn-sm" onclick="openAddExamModal()">+ 등록</button>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="saveExam()">새 모의고사 등록</button>
-    <span id="exam-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
     <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
   </div>
 
@@ -193,11 +199,11 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 
 <!-- TAB 3: ASSIGN -->
 <div class="panel active" id="panel-assign">
-  <div class="s-title">좌석 자동배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
-  <div class="s-sub">규칙: 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채워 배치합니다. (남녀 분단 분리는 지금 사용하지 않음) 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
-  <button class="btn btn-primary" onclick="autoAssign()">자동배치 실행</button>
+  <div class="s-title">좌석 배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
+  <div class="s-sub admin-only" style="display:none">규칙: 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채워 배치합니다. 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
+  <button class="btn btn-primary admin-only" style="display:none" onclick="autoAssign()">자동배치 실행</button>
   <button class="btn btn-ghost" onclick="window.print()">🖨️ 인쇄</button>
-  <button class="btn btn-ghost" onclick="clearSelection()">선택 취소</button>
+  <button class="btn btn-ghost admin-only" style="display:none" onclick="clearSelection()">선택 취소</button>
 
   <div id="assign-summary" class="summary-bar" style="display:none"></div>
   <div class="legend">
@@ -250,6 +256,23 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   </div>
 </div>
 
+<!-- MODAL: 모의고사 등록 -->
+<div class="modal-overlay" id="add-exam-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)document.getElementById('add-exam-modal').style.display='none'">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700">새 모의고사 등록</div>
+      <button onclick="document.getElementById('add-exam-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>
+    <div class="field"><label class="field-label">모의고사 이름</label><input type="text" id="exam-name" style="width:100%" placeholder="예: 2027학년도 9월 더프리미엄 모의고사"></div>
+    <div class="field" style="margin-top:10px"><label class="field-label">시험일</label><input type="date" id="exam-date" style="width:100%"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-exam-modal').style.display='none'">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveExam()">등록</button>
+    </div>
+    <div id="exam-status" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
+  </div>
+</div>
+
 <!-- MODAL: 강의실 편집 -->
 <div class="modal-overlay" id="room-editor-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeRoomEditor()">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:900px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
@@ -258,21 +281,21 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <button onclick="closeRoomEditor()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
     </div>
 
-    <div class="row" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
-      <div class="field" style="flex:none;width:150px;min-width:0"><label class="field-label">강의실 이름</label><input type="text" id="room-name" placeholder="예: 101호" style="width:100%"></div>
-      <div class="field" style="flex:none;width:60px;min-width:0"><label class="field-label">행</label><input type="number" id="room-rows" value="14" min="1" style="width:100%"></div>
-      <div style="padding-bottom:9px;font-weight:700;color:var(--text3)">×</div>
-      <div class="field" style="flex:none;width:60px;min-width:0"><label class="field-label">열</label><input type="number" id="room-cols" value="8" min="1" style="width:100%"></div>
-      <button class="btn btn-ghost btn-sm" onclick="generateRoomGrid()">그리드 생성</button>
+    <div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:none;width:150px;min-width:0"><label class="field-label">강의실 이름</label><input type="text" id="room-name" placeholder="예: 101호" style="width:100%;height:34px;box-sizing:border-box"></div>
+      <div class="field" style="flex:none;width:60px;min-width:0"><label class="field-label">행</label><input type="number" id="room-rows" value="14" min="1" style="width:100%;height:34px;box-sizing:border-box"></div>
+      <div><label class="field-label" style="visibility:hidden">·</label><div style="height:34px;display:flex;align-items:center;font-weight:700;color:var(--text3)">×</div></div>
+      <div class="field" style="flex:none;width:60px;min-width:0"><label class="field-label">열</label><input type="number" id="room-cols" value="8" min="1" style="width:100%;height:34px;box-sizing:border-box"></div>
+      <div><label class="field-label" style="visibility:hidden">·</label><button class="btn btn-ghost btn-sm" style="height:34px;box-sizing:border-box" onclick="generateRoomGrid()">그리드 생성</button></div>
       <div>
-        <div class="field-label" style="margin-bottom:6px">번호 방향</div>
+        <div class="field-label">번호 방향</div>
         <div class="seg-group">
           <label><input type="radio" name="numdir" value="row" checked onchange="renderRoomGrid()">가로</label>
           <label><input type="radio" name="numdir" value="col" onchange="renderRoomGrid()">세로</label>
         </div>
       </div>
       <div>
-        <div class="field-label" style="margin-bottom:6px">칠하기 모드</div>
+        <div class="field-label">칠하기 모드</div>
         <div class="seg-group">
           <label><input type="radio" name="paintmode" value="unusable" checked>비사용</label>
           <label><input type="radio" name="paintmode" value="aisle">통로</label>
@@ -280,7 +303,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
         </div>
       </div>
       <div style="flex:1"></div>
-      <button class="btn btn-primary btn-sm" onclick="saveRoom()">저장</button>
+      <div><label class="field-label" style="visibility:hidden">·</label><button class="btn btn-primary btn-sm" style="height:34px;box-sizing:border-box" onclick="saveRoom()">저장</button></div>
     </div>
     <div style="margin-top:6px"><span id="room-status" style="font-size:12px;color:var(--text2)"></span></div>
 
@@ -427,17 +450,86 @@ async function loadExamList(){
     snap.docs.forEach(d => exams[d.id] = d.data());
   } catch(e){ console.error(e); }
   renderExamList();
+  populateExamViewSelect();
+}
+
+function populateExamViewSelect(){
+  const sel = document.getElementById('exam-view-select');
+  if (!sel) return;
+  const names = Object.keys(exams).sort((a,b)=> (exams[b].date||'').localeCompare(exams[a].date||''));
+  const current = sel.value;
+  sel.innerHTML = '<option value="">모의고사를 선택하세요</option>' +
+    names.map(n=>`<option value="${n}">${n}${exams[n].date?` (${exams[n].date})`:''}</option>`).join('');
+  if (names.includes(current)) sel.value = current;
+}
+
+async function onExamViewChange(examName){
+  if (!examName) return;
+  if (!db) return;
+  try {
+    const snap = await db.collection('examSeatingSnapshots').where('name','==',examName).get();
+    if (snap.empty) { alert(`"${examName}"로 저장된 좌석배치가 아직 없습니다.`); return; }
+    const docs = snap.docs.map(d => d.data());
+    docs.sort((a,b) => (b.savedAt?.toMillis?.()||0) - (a.savedAt?.toMillis?.()||0));
+    const data = docs[0];
+    Object.entries(data.rooms||{}).forEach(([rn, rdata]) => {
+      rooms[rn] = { rows: rdata.rows, cols: rdata.cols, cuts: rdata.cuts||[], cellTypes: rdata.cellTypes||{}, numberDir: rdata.numberDir||'row' };
+      seatAssignByRoom[rn] = rdata.seatAssign || {};
+      unplacedByRoom[rn] = [];
+    });
+    renderHeaderRoomTabs();
+    const first = Object.keys(data.rooms||{})[0];
+    if (first) selectRoomTab(first);
+  } catch(e) { alert('불러오기 실패: ' + e.message); }
+}
+
+function searchStudentSeat(){
+  const q = document.getElementById('student-search-input').value.trim();
+  if (!q) return;
+  const hits = [];
+  Object.keys(seatAssignByRoom).forEach(roomName => {
+    Object.entries(seatAssignByRoom[roomName]).forEach(([key, stu]) => {
+      if (stu.sid === q || stu.name === q || (stu.name && stu.name.includes(q))) {
+        hits.push({ roomName, key, stu });
+      }
+    });
+  });
+  if (!hits.length) { alert(`"${q}"에 대한 배치 결과를 찾을 수 없습니다. (선택한 모의고사에서 조회됩니다)`); return; }
+  const msg = hits.map(h => {
+    const room = rooms[h.roomName];
+    const numbers = room ? computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row') : {};
+    const num = numbers[h.key] || '?';
+    return `${h.stu.name}(${h.stu.sid}) → ${h.roomName} ${num}번`;
+  }).join('\n');
+  alert(msg);
 }
 
 function renderExamList(){
-  const el = document.getElementById('exam-list');
+  const sel = document.getElementById('exam-select');
   const names = Object.keys(exams).sort((a,b)=> (exams[b].date||'').localeCompare(exams[a].date||''));
-  el.innerHTML = names.map(n=>`<div class="room-chip ${selectedExam && selectedExam.name===n?'active':''}" onclick="selectExam('${n.replace(/'/g,"\\'")}')">${n} (${exams[n].date||'날짜없음'})</div>`).join('') || '<div style="color:var(--text3);font-size:12px">등록된 모의고사가 없습니다. 아래에서 추가해주세요.</div>';
+  if (!names.length) {
+    sel.innerHTML = '<option value="">등록된 모의고사가 없습니다</option>';
+    document.getElementById('exam-selected-info').textContent = '선택된 모의고사가 없습니다. 오른쪽 "+ 등록" 버튼으로 추가해주세요.';
+    return;
+  }
+  sel.innerHTML = names.map(n=>`<option value="${n}">${n} (${exams[n].date||'날짜없음'})</option>`).join('');
+  if (!selectedExam || !exams[selectedExam.name]) selectedExam = { name: names[0], date: exams[names[0]].date };
+  sel.value = selectedExam.name;
+  document.getElementById('exam-selected-info').textContent = `선택됨: ${selectedExam.name} (시험일: ${selectedExam.date || '미지정'})`;
+}
+
+function openAddExamModal(){
+  document.getElementById('exam-name').value = '';
+  document.getElementById('exam-date').value = '';
+  document.getElementById('exam-status').textContent = '';
+  document.getElementById('add-exam-modal').style.display = 'flex';
 }
 
 function selectExam(name){
+  if (!exams[name]) return;
   selectedExam = { name, date: exams[name].date };
-  renderExamList();
+  const sel = document.getElementById('exam-select');
+  if (sel) sel.value = name;
   document.getElementById('exam-selected-info').textContent = `선택됨: ${name} (시험일: ${selectedExam.date || '미지정'})`;
 }
 
@@ -451,6 +543,7 @@ async function saveExam(){
     statusEl.textContent = '✓ 등록됨';
     await loadExamList();
     selectExam(name);
+    setTimeout(() => { document.getElementById('add-exam-modal').style.display = 'none'; }, 600);
   } catch(e) { statusEl.textContent = '실패: ' + e.message; }
 }
 
@@ -1103,32 +1196,36 @@ function renderAssignGrid(room){
       const stu = seatAssign[key];
       const num = numbers[key];
       const isAssignable = num && type!=='unseatable';
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : (stu?comboClass(stu.combo):''));
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
       if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
-        div.onclick = () => onSeatClick(key);
-        div.draggable = true;
-        div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', key); div.classList.add('dragging'); };
-        div.ondragend = () => div.classList.remove('dragging');
-        div.ondragover = (e) => { e.preventDefault(); div.classList.add('drag-over'); };
-        div.ondragleave = () => div.classList.remove('drag-over');
-        div.ondrop = (e) => {
-          e.preventDefault();
-          div.classList.remove('drag-over');
-          const srcKey = e.dataTransfer.getData('text/plain');
-          if (!srcKey || srcKey === key) return;
-          const sa = get_seatAssign();
-          const a = sa[srcKey], b = sa[key];
-          if (a) sa[key] = a; else delete sa[key];
-          if (b) sa[srcKey] = b; else delete sa[srcKey];
-          selectedSeatKey = null;
-          renderAssignGrid(rooms[currentAssignRoom]);
-        };
+        if (window.isAdmin) {
+          div.onclick = () => onSeatClick(key);
+          div.draggable = true;
+          div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', key); div.classList.add('dragging'); };
+          div.ondragend = () => div.classList.remove('dragging');
+          div.ondragover = (e) => { e.preventDefault(); div.classList.add('drag-over'); };
+          div.ondragleave = () => div.classList.remove('drag-over');
+          div.ondrop = (e) => {
+            e.preventDefault();
+            div.classList.remove('drag-over');
+            const srcKey = e.dataTransfer.getData('text/plain');
+            if (!srcKey || srcKey === key) return;
+            const sa = get_seatAssign();
+            const a = sa[srcKey], b = sa[key];
+            if (a) sa[key] = a; else delete sa[key];
+            if (b) sa[srcKey] = b; else delete sa[srcKey];
+            selectedSeatKey = null;
+            renderAssignGrid(rooms[currentAssignRoom]);
+          };
+        }
       } else if (type==='unseatable') {
         div.innerHTML = `<span class="sn">${num}</span>`; // 학생용 화면에서는 평범한 책상처럼만 표시 (빈 자리)
+      } else if (type==='aisle') {
+        div.innerHTML = ''; // 통로는 학생용 화면에서는 그냥 빈 칸으로 표시
       } else {
-        div.innerHTML = type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '';
+        div.innerHTML = type==='unusable' ? '비사용' : '';
       }
       grid.appendChild(div);
     }
