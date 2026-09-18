@@ -809,13 +809,15 @@ function populateAssignRoomSelect(){
 function renderHeaderRoomTabs(){
   const el = document.getElementById('room-tabs-header');
   const names = Object.keys(rooms);
-  el.innerHTML = names.map(n=>`<div class="tab" data-tabid="${n}" onclick="selectRoomTab('${n.replace(/'/g,"\\'")}')">${n}</div>`).join('');
+  el.innerHTML = names.map(n=>`<div class="tab ${n===assignRoomSelection?'active':''}" data-tabid="${n}" onclick="selectRoomTab('${n.replace(/'/g,"\\'")}')">${n}</div>`).join('');
   if (names.length === 0) {
     document.getElementById('assign-room-title').textContent = '저장된 강의실이 없습니다 (관리자 → 강의실 설정에서 먼저 만들어주세요)';
     return;
   }
   if (!assignRoomSelection || !rooms[assignRoomSelection]) assignRoomSelection = names[0];
-  selectRoomTab(assignRoomSelection);
+  // 현재 화면이 좌석배치(assign) 패널일 때만 그 방으로 이동. 강의실 설정/데이터 가져오기 화면을 보고 있으면 그대로 유지.
+  const assignPanelActive = document.getElementById('panel-assign')?.classList.contains('active');
+  if (assignPanelActive) selectRoomTab(assignRoomSelection);
 }
 function selectStatsTab(){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
