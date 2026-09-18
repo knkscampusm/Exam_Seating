@@ -53,9 +53,13 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 .seat-grid{display:inline-grid;gap:4px}
 .seat{width:64px;height:44px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center;line-height:1.3;position:relative}
 .seat.blank{background:repeating-linear-gradient(45deg,#eee,#eee 4px,#fafafa 4px,#fafafa 8px);cursor:default;border-style:dashed}
+.admin-menu-item{display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:transparent;font-family:inherit;font-size:13px;border-radius:7px;cursor:pointer}
+.admin-menu-item:hover{background:var(--surface2)}
 .seat.unusable{background:repeating-linear-gradient(45deg,#ddd,#ddd 4px,#f5f5f5 4px,#f5f5f5 8px);cursor:pointer;border-style:dashed;color:var(--text3);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.aisle{background:repeating-linear-gradient(135deg,#e0f0ee,#e0f0ee 4px,#f5fbfa 4px,#f5fbfa 8px);cursor:pointer;border-style:dotted;color:var(--accent2);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.sel{outline:2px solid var(--accent2);outline-offset:1px}
+.seat.dragging{opacity:.4}
+.seat.drag-over{outline:2px dashed var(--accent);outline-offset:1px;background:rgba(43,173,160,.08)}
 .seat .sn{position:absolute;top:1px;left:3px;font-size:8px;color:var(--text3)}
 .seat.cat-sci{background:rgba(74,134,217,.14)}
 .seat.cat-mix{background:rgba(61,187,177,.16)}
@@ -81,11 +85,19 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <div class="header no-print">
   <div class="logo">📋 모의고사 좌석배치</div>
   <div class="tabs" id="header-tabs">
-    <div class="tab admin-only" data-tabid="import" style="display:none" onclick="selectAdminTab('import')">데이터 가져오기</div>
-    <div class="tab admin-only" data-tabid="room" style="display:none" onclick="selectAdminTab('room')">강의실 설정</div>
+    <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
     <div id="room-tabs-header" style="display:flex;gap:2px"></div>
   </div>
-  <div style="margin-left:auto">
+  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;position:relative">
+    <button class="btn btn-ghost btn-sm" onclick="openSnapshotModal()">📚 지난배치</button>
+    <span id="admin-menu-wrap" style="position:relative;display:none">
+      <button class="btn btn-ghost btn-sm" onclick="toggleAdminMenu(event)">⚙ 관리자 메뉴 ▾</button>
+      <div id="admin-menu-pop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);min-width:200px;padding:5px;z-index:1000">
+        <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('import')">📤 데이터 가져오기</button>
+        <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('room')">🏛 강의실 설정</button>
+        <button class="admin-menu-item" onclick="closeAdminMenu();openSaveSnapshotPrompt()">💾 현재 배치 저장</button>
+      </div>
+    </span>
     <button class="btn btn-ghost btn-sm" id="admin-btn" onclick="toggleAdmin()">🔒 관리자</button>
   </div>
 </div>
@@ -149,9 +161,15 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 2: ROOM SETUP -->
 <div class="panel" id="panel-room">
   <div class="s-title">강의실 배치 설정</div>
-  <div class="s-sub">행×열로 그리드를 만든 뒤, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다. (101~104/201~204/S01/S02호는 처음 접속 시 기본 틀이 자동으로 만들어져 있어요. F01호는 사다리꼴 구조라 자동생성 대상에서 빠져있으니 직접 만들어주세요.)</div>
+  <div class="s-sub">"새 강의실 만들기"로 시작해서 행×열을 입력해 그리드를 생성하고, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다.</div>
 
-  <div class="room-list" id="room-list"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div class="room-list" id="room-list" style="margin-bottom:0"></div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn btn-primary btn-sm" onclick="startNewRoom()">+ 새 강의실 만들기</button>
+      <button class="btn btn-ghost btn-sm" onclick="deleteAllRooms()" style="color:var(--red);border-color:var(--red)">전체 삭제</button>
+    </div>
+  </div>
 
   <div class="card">
     <div class="row">
@@ -210,9 +228,40 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   </div>
 </div>
 
+<!-- STATS PANEL -->
+<div class="panel" id="panel-stats">
+  <div class="s-title">📊 통계</div>
+  <div class="s-sub">현재 세션에 가져온 학생 데이터와, 각 강의실에 배치된 결과를 기준으로 집계합니다.</div>
+  <div id="stats-content"></div>
 </div>
 
-<!-- MODAL: 등원일=시험일 학생 확인 -->
+</div>
+
+<!-- MODAL: 지난배치 스냅샷 -->
+<div class="modal-overlay" id="snapshot-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:560px;max-width:92vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:700">📚 지난 배치</div>
+      <button onclick="document.getElementById('snapshot-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>
+    <div id="snapshot-list" style="font-size:12px"></div>
+  </div>
+</div>
+
+<!-- MODAL: 배치 저장 -->
+<div class="modal-overlay" id="save-snapshot-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px">💾 현재 배치 저장</div>
+    <div class="field"><label class="field-label">저장 이름</label><input type="text" id="snapshot-name" style="width:100%" placeholder="예: 9월 더프리미엄 모의고사"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('save-snapshot-modal').style.display='none'">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmSaveSnapshot()">저장</button>
+    </div>
+    <div id="save-snapshot-status" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
+  </div>
+</div>
+
+
 <div class="modal-overlay" id="enroll-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:520px;max-width:92vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
     <div style="font-size:15px;font-weight:700;margin-bottom:6px">⚠️ 등원일이 시험일과 같은 학생</div>
@@ -268,9 +317,12 @@ const ADMIN_PASSWORD = '@knks7888';
 window.isAdmin = false;
 function toggleAdmin(){
   const btn = document.getElementById('admin-btn');
+  const menuWrap = document.getElementById('admin-menu-wrap');
   if (window.isAdmin) {
     window.isAdmin = false;
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    menuWrap.style.display = 'none';
+    closeAdminMenu();
     btn.textContent = '🔒 관리자';
     if (assignRoomSelection) selectRoomTab(assignRoomSelection);
   } else {
@@ -279,9 +331,21 @@ function toggleAdmin(){
     if (pw !== ADMIN_PASSWORD) { alert('비밀번호가 틀렸습니다'); return; }
     window.isAdmin = true;
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    menuWrap.style.display = 'inline-block';
     btn.textContent = '🔓 관리자 모드 (끄기)';
   }
 }
+
+function toggleAdminMenu(e){
+  if (e) e.stopPropagation();
+  document.getElementById('admin-menu-pop').style.display =
+    document.getElementById('admin-menu-pop').style.display === 'none' ? '' : 'none';
+}
+function closeAdminMenu(){ document.getElementById('admin-menu-pop').style.display = 'none'; }
+document.addEventListener('click', e => {
+  const pop = document.getElementById('admin-menu-pop');
+  if (pop && pop.style.display !== 'none' && !e.target.closest('#admin-menu-wrap')) closeAdminMenu();
+});
 
 // ── 탐구 과목 분류 (수능 탐구 과목명 기준) ──
 const SCI_SUBJECTS = ['물리학1','물리학2','화학1','화학2','생명과학1','생명과학2','지구과학1','지구과학2'];
@@ -513,10 +577,6 @@ async function loadRoomList(){
       const data = d.data();
       rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], cellTypes: data.cellTypes || blanksArrToCellTypes(data.blanks||[], 'unusable'), numberDir: data.numberDir||'row' };
     });
-    if (snap.empty) {
-      await bulkCreateRooms(true);
-      return; // bulkCreateRooms가 loadRoomList를 다시 호출함
-    }
   } catch(e){ console.error(e); }
   renderRoomList();
 }
@@ -525,6 +585,36 @@ function renderRoomList(){
   const el = document.getElementById('room-list');
   el.innerHTML = Object.keys(rooms).map(n=>`<div class="room-chip ${n===currentRoomName?'active':''}" onclick="loadRoomIntoEditor('${n}')">${n}</div>`).join('') || '<div style="color:var(--text3);font-size:12px">저장된 강의실이 없습니다. 아래에서 새로 만들어보세요.</div>';
   renderHeaderRoomTabs();
+}
+
+function startNewRoom(){
+  currentRoomName = null;
+  document.getElementById('room-name').value = '';
+  document.getElementById('room-rows').value = 14;
+  document.getElementById('room-cols').value = 8;
+  document.getElementById('room-cuts').value = '';
+  document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value==='row'));
+  document.getElementById('inc-unusable').checked = false;
+  document.getElementById('inc-aisle').checked = false;
+  editorCellTypes = {};
+  document.getElementById('room-status').textContent = '';
+  renderRoomList();
+  document.getElementById('room-grid-preview').innerHTML = '';
+}
+
+async function deleteAllRooms(){
+  if (!db) return;
+  if (!confirm('저장된 강의실을 전부 삭제할까요? 되돌릴 수 없어요.')) return;
+  const statusEl = document.getElementById('room-status');
+  try {
+    const snap = await db.collection('examSeatingRooms').get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    statusEl.textContent = `✓ ${snap.docs.length}개 삭제됨`;
+    startNewRoom();
+    await loadRoomList();
+  } catch(e) { statusEl.textContent = '삭제 실패: ' + e.message; }
 }
 
 function loadRoomIntoEditor(name){
@@ -621,47 +711,6 @@ function blanksArrToCellTypes(arr, type){
   return o;
 }
 
-const ROOM_PRESETS = ['101호','102호','103호','104호','201호','202호','203호','204호'].map(name => {
-  const rows = (name==='103호') ? 19 : 20;
-  const blanks = (name==='101호' || name==='102호') ? ['10_7','12_2'] : []; // 79번, 90번 자리 = 기둥 (확인됨)
-  return { name, rows, cols:8, cuts:[4], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'unusable') };
-});
-
-// S01: 7행 x 10열, 실제 좌석은 홀수열(1,3,5,7,9)뿐 — 짝수열은 전부 통로(구조적 빈자리)
-(function(){
-  const blanks = [];
-  for (let r=1;r<=7;r++) for (const c of [2,4,6,8,10]) blanks.push(`${r}_${c}`);
-  ROOM_PRESETS.push({ name:'S01호', rows:7, cols:10, cuts:[6], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'aisle') });
-})();
-
-// S02: 20행 x 12열, 3열 단위 그룹(2석+통로1) 반복 — 1행만 앞쪽이 비어 좌석이 더 적음
-(function(){
-  const blanks = [];
-  for (let r=2;r<=20;r++) for (const c of [3,6,9,12]) blanks.push(`${r}_${c}`);
-  for (const c of [1,2,3,6,10,11,12]) blanks.push(`1_${c}`); // 1행 앞쪽 교탁 여백
-  ROOM_PRESETS.push({ name:'S02호', rows:20, cols:12, cuts:[], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'aisle') });
-})();
-
-
-async function bulkCreateRooms(silent){
-  const statusEl = document.getElementById('bulk-room-status');
-  if (statusEl) statusEl.textContent = '생성 중...';
-  let created = 0, skipped = 0;
-  for (const preset of ROOM_PRESETS){
-    try {
-      const doc = await db.collection('examSeatingRooms').doc(preset.name).get();
-      if (doc.exists) { skipped++; continue; }
-      await db.collection('examSeatingRooms').doc(preset.name).set({
-        rows: preset.rows, cols: preset.cols, cuts: preset.cuts, cellTypes: preset.cellTypes, numberDir: preset.numberDir,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      created++;
-    } catch(e) { console.error(preset.name, e); }
-  }
-  if (statusEl) statusEl.textContent = `✓ ${created}개 생성, ${skipped}개는 이미 있어 건너뜀`;
-  await loadRoomList();
-}
-
 async function saveRoom(){
   const statusEl = document.getElementById('room-status');
   const name = document.getElementById('room-name').value.trim();
@@ -696,6 +745,143 @@ function renderHeaderRoomTabs(){
   if (!assignRoomSelection || !rooms[assignRoomSelection]) assignRoomSelection = names[0];
   selectRoomTab(assignRoomSelection);
 }
+function selectStatsTab(){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-stats').classList.add('active');
+  setActiveTabUI('stats');
+  renderStats();
+}
+
+// ── 지난 배치 스냅샷 ──
+function openSaveSnapshotPrompt(){
+  const nameInput = document.getElementById('snapshot-name');
+  nameInput.value = (selectedExam && selectedExam.name) ? selectedExam.name : '';
+  document.getElementById('save-snapshot-status').textContent = '';
+  document.getElementById('save-snapshot-modal').style.display = 'flex';
+}
+
+async function confirmSaveSnapshot(){
+  const statusEl = document.getElementById('save-snapshot-status');
+  const name = document.getElementById('snapshot-name').value.trim();
+  if (!name) { statusEl.textContent = '이름을 입력해주세요'; return; }
+  if (!db) { statusEl.textContent = 'Firebase 연결 안됨'; return; }
+  statusEl.textContent = '저장 중...';
+  try {
+    const roomsData = {};
+    Object.keys(rooms).forEach(rn => {
+      const room = rooms[rn];
+      roomsData[rn] = {
+        rows: room.rows, cols: room.cols, cuts: room.cuts, cellTypes: room.cellTypes, numberDir: room.numberDir,
+        seatAssign: seatAssignByRoom[rn] || {}
+      };
+    });
+    await db.collection('examSeatingSnapshots').add({
+      name, savedAt: firebase.firestore.FieldValue.serverTimestamp(), savedAtStr: new Date().toLocaleString('ko-KR'),
+      rooms: roomsData
+    });
+    statusEl.textContent = '✓ 저장됨';
+    setTimeout(()=>{ document.getElementById('save-snapshot-modal').style.display='none'; }, 800);
+  } catch(e) { statusEl.textContent = '저장 실패: ' + e.message; }
+}
+
+async function openSnapshotModal(){
+  const listEl = document.getElementById('snapshot-list');
+  listEl.innerHTML = '불러오는 중...';
+  document.getElementById('snapshot-modal').style.display = 'flex';
+  if (!db) { listEl.innerHTML = 'Firebase 연결 안됨'; return; }
+  try {
+    const snap = await db.collection('examSeatingSnapshots').orderBy('savedAt','desc').limit(30).get();
+    if (snap.empty) { listEl.innerHTML = '<div style="color:var(--text3)">저장된 배치가 없습니다.</div>'; return; }
+    listEl.innerHTML = snap.docs.map(d => {
+      const data = d.data();
+      const roomNames = Object.keys(data.rooms||{});
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <div>
+          <div style="font-weight:600">${data.name}</div>
+          <div style="color:var(--text3);font-size:11px">${data.savedAtStr||''} · 강의실 ${roomNames.length}개</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="loadSnapshot('${d.id}')">불러오기</button>
+      </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML = '불러오기 실패: ' + e.message; }
+}
+
+async function loadSnapshot(id){
+  if (!confirm('현재 화면의 배치 위에 이 스냅샷을 덮어씁니다. 계속할까요?')) return;
+  try {
+    const doc = await db.collection('examSeatingSnapshots').doc(id).get();
+    if (!doc.exists) { alert('스냅샷을 찾을 수 없습니다'); return; }
+    const data = doc.data();
+    Object.entries(data.rooms||{}).forEach(([rn, rdata]) => {
+      rooms[rn] = { rows: rdata.rows, cols: rdata.cols, cuts: rdata.cuts||[], cellTypes: rdata.cellTypes||{}, numberDir: rdata.numberDir||'row' };
+      seatAssignByRoom[rn] = rdata.seatAssign || {};
+      unplacedByRoom[rn] = [];
+    });
+    document.getElementById('snapshot-modal').style.display = 'none';
+    renderHeaderRoomTabs();
+    const first = Object.keys(data.rooms||{})[0];
+    if (first) selectRoomTab(first);
+    alert(`"${data.name}" 배치를 불러왔습니다.`);
+  } catch(e) { alert('불러오기 실패: ' + e.message); }
+}
+
+function renderStats(){
+  const el = document.getElementById('stats-content');
+  const students = window.importedStudents || [];
+  if (!students.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>가져온 학생명단이 없습니다. 관리자 메뉴 → 데이터 가져오기를 먼저 진행해주세요.</div>';
+    return;
+  }
+  const male = students.filter(s=>/^남/.test(s.gender)).length;
+  const female = students.filter(s=>/^여/.test(s.gender)).length;
+  const other = students.length - male - female;
+  const comboCounts = {'과탐+과탐':0,'과탐+사탐':0,'사탐+사탐':0,'미분류':0};
+  students.forEach(s=>comboCounts[s.combo]++);
+  const byBan = {};
+  students.forEach(s=>{ const k=s.ban||'(반없음)'; byBan[k]=(byBan[k]||0)+1; });
+
+  const roomRows = Object.keys(rooms).map(name=>{
+    const room = rooms[name];
+    const seatAssign = seatAssignByRoom[name] || {};
+    const assigned = Object.keys(seatAssign).length;
+    const sections = buildSectionSeatLists(room);
+    const totalSeats = sections.reduce((a,s)=>a+s.length,0);
+    const unplaced = (unplacedByRoom[name]||[]).length;
+    return { name, assigned, totalSeats, unplaced };
+  }).filter(r=>r.assigned>0 || r.unplaced>0);
+
+  const totalAssigned = roomRows.reduce((a,r)=>a+r.assigned,0);
+
+  el.innerHTML = `
+    <div class="summary-bar" style="margin-bottom:14px">
+      <span>총원 <b>${students.length}</b>명</span>
+      <span>배치됨 <b>${totalAssigned}</b>명</span>
+      <span>남 <b>${male}</b> / 여 <b>${female}</b>${other?` / 미상 <b>${other}</b>`:''}</span>
+      <span>과탐+과탐 <b>${comboCounts['과탐+과탐']}</b></span>
+      <span>과탐+사탐 <b>${comboCounts['과탐+사탐']}</b></span>
+      <span>사탐+사탐 <b>${comboCounts['사탐+사탐']}</b></span>
+      ${comboCounts['미분류']?`<span style="color:var(--red)">미분류 <b>${comboCounts['미분류']}</b></span>`:''}
+    </div>
+    <div class="row">
+      <div class="card" style="flex:1;min-width:220px">
+        <div class="s-title" style="font-size:13px">반별 인원</div>
+        <table><tbody>
+          ${Object.entries(byBan).sort((a,b)=>a[0].localeCompare(b[0],'ko')).map(([b,c])=>`<tr><td>${b}</td><td style="text-align:right">${c}명</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div class="card" style="flex:2;min-width:280px">
+        <div class="s-title" style="font-size:13px">강의실별 현황</div>
+        <table>
+          <thead><tr><th>강의실</th><th>배정/좌석</th><th>미배치</th></tr></thead>
+          <tbody>
+            ${roomRows.map(r=>`<tr><td>${r.name}</td><td>${r.assigned}/${r.totalSeats}</td><td style="color:${r.unplaced?'var(--red)':'inherit'}">${r.unplaced}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text3)">아직 배치된 강의실이 없습니다</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function selectRoomTab(name){
   assignRoomSelection = name;
   currentAssignRoom = name;
@@ -836,6 +1022,23 @@ function renderAssignGrid(room){
       if (num) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         div.onclick = () => onSeatClick(key);
+        div.draggable = true;
+        div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', key); div.classList.add('dragging'); };
+        div.ondragend = () => div.classList.remove('dragging');
+        div.ondragover = (e) => { e.preventDefault(); div.classList.add('drag-over'); };
+        div.ondragleave = () => div.classList.remove('drag-over');
+        div.ondrop = (e) => {
+          e.preventDefault();
+          div.classList.remove('drag-over');
+          const srcKey = e.dataTransfer.getData('text/plain');
+          if (!srcKey || srcKey === key) return;
+          const sa = get_seatAssign();
+          const a = sa[srcKey], b = sa[key];
+          if (a) sa[key] = a; else delete sa[key];
+          if (b) sa[srcKey] = b; else delete sa[srcKey];
+          selectedSeatKey = null;
+          renderAssignGrid(rooms[currentAssignRoom]);
+        };
       } else {
         div.innerHTML = type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '';
       }
