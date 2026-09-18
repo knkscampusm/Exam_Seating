@@ -197,8 +197,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <label style="font-size:12px"><input type="checkbox" id="inc-aisle" onchange="renderRoomGrid()"> 통로 포함</label>
     </div>
 
-    <div class="field" style="margin-top:8px"><label class="field-label">분단 경계 (쉼표로 구분, 이 열 다음에서 분단이 나뉨. 예: 8열이고 "4"면 1-4열/5-8열 두 분단)</label><input type="text" id="room-cuts" style="width:100%" value="4"></div>
-
     <div class="row" style="align-items:center;margin-top:10px">
       <span style="font-size:12px;color:var(--text2);font-weight:600">칠하기 모드:</span>
       <label style="font-size:12px"><input type="radio" name="paintmode" value="unusable" checked> 비사용</label>
@@ -215,7 +213,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 3: ASSIGN -->
 <div class="panel active" id="panel-assign">
   <div class="s-title">좌석 자동배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
-  <div class="s-sub">규칙: ① 남녀는 분단 단위로 분리 ② 탐구조합(과탐+과탐 / 과탐+사탐 / 사탐+사탐)별로 구역을 나눠 배치합니다. 자리를 클릭 → 다른 자리 클릭하면 서로 자리를 바꿀 수 있어요.</div>
+  <div class="s-sub">규칙: 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채워 배치합니다. (남녀 분단 분리는 지금 사용하지 않음) 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
   <button class="btn btn-primary" onclick="autoAssign()">자동배치 실행</button>
   <button class="btn btn-ghost" onclick="window.print()">🖨️ 인쇄</button>
   <button class="btn btn-ghost" onclick="clearSelection()">선택 취소</button>
@@ -664,7 +662,6 @@ function startNewRoom(){
   document.getElementById('room-name').value = '';
   document.getElementById('room-rows').value = 14;
   document.getElementById('room-cols').value = 8;
-  document.getElementById('room-cuts').value = '';
   document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value==='row'));
   document.getElementById('inc-unusable').checked = false;
   document.getElementById('inc-aisle').checked = false;
@@ -695,7 +692,6 @@ function loadRoomIntoEditor(name){
   document.getElementById('room-name').value = name;
   document.getElementById('room-rows').value = r.rows;
   document.getElementById('room-cols').value = r.cols;
-  document.getElementById('room-cuts').value = r.cuts.join(',');
   document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value === (r.numberDir||'row')));
   editorCellTypes = { ...(r.cellTypes||{}) };
   renderRoomList();
@@ -737,7 +733,6 @@ function generateRoomGrid(){
 function renderRoomGrid(){
   const rows = parseInt(document.getElementById('room-rows').value)||1;
   const cols = parseInt(document.getElementById('room-cols').value)||1;
-  const cuts = document.getElementById('room-cuts').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
   const numberDir = document.querySelector('input[name=numdir]:checked').value;
   const includeUnusable = document.getElementById('inc-unusable').checked;
   const includeAisle = document.getElementById('inc-aisle').checked;
@@ -750,12 +745,10 @@ function renderRoomGrid(){
     for (let c=1;c<=cols;c++){
       const key = `${r}_${c}`;
       const type = editorCellTypes[key];
-      const section = getSectionIndex(c, cuts);
       const div = document.createElement('div');
       const num = numbers[key];
       div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : '');
-      div.style.borderLeft = (cuts.includes(c-1)||c===1) ? '3px solid var(--accent)' : '1px solid var(--border)';
-      div.innerHTML = num ? `<span class="sn">${num}</span>분단${section+1}` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
+      div.innerHTML = num ? `<span class="sn">${num}</span>` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
       div.onclick = () => {
         const mode = document.querySelector('input[name=paintmode]:checked').value;
         if (editorCellTypes[key] === mode) delete editorCellTypes[key];
@@ -767,13 +760,6 @@ function renderRoomGrid(){
   }
   wrap.innerHTML = '';
   wrap.appendChild(grid);
-}
-
-function getSectionIndex(col, cuts){
-  const sorted = [...cuts].sort((a,b)=>a-b);
-  let idx = 0;
-  for (const cut of sorted) { if (col > cut) idx++; else break; }
-  return idx;
 }
 
 // ── 기본 강의실 8개 일괄 생성 (101~104, 201~204: 8열x20행, 좌4/우4 분단) ──
@@ -789,8 +775,8 @@ async function saveRoom(){
   if (!name) { statusEl.textContent = '강의실 이름을 입력해주세요'; return; }
   const rows = parseInt(document.getElementById('room-rows').value)||1;
   const cols = parseInt(document.getElementById('room-cols').value)||1;
-  const cuts = document.getElementById('room-cuts').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
   const numberDir = document.querySelector('input[name=numdir]:checked').value;
+  const cuts = [];
   try {
     await db.collection('examSeatingRooms').doc(name).set({
       rows, cols, cuts, numberDir, cellTypes: editorCellTypes, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -973,10 +959,8 @@ function selectRoomTab(name){
 }
 
 function buildSectionSeatLists(room){
-  // 분단별 좌석 목록(행-열 순서), 각 분단은 col 범위로 결정. 비사용/통로 칸은 배정에서 제외.
-  const sorted = [...room.cuts].sort((a,b)=>a-b);
-  const numSections = sorted.length + 1;
-  const sections = Array.from({length:numSections}, ()=>[]);
+  // 사용 가능한 좌석 전체 목록(선택한 번호 방향 순서). 비사용/통로 칸은 배정에서 제외.
+  const seats = [];
   const order = [];
   if (room.numberDir === 'col') {
     for (let c=1;c<=room.cols;c++) for (let r=1;r<=room.rows;r++) order.push([r,c]);
@@ -986,10 +970,9 @@ function buildSectionSeatLists(room){
   order.forEach(([r,c]) => {
     const key = `${r}_${c}`;
     if (room.cellTypes && room.cellTypes[key]) return; // 비사용/통로는 배정 대상에서 제외
-    const s = getSectionIndex(c, sorted);
-    sections[s].push(key);
+    seats.push(key);
   });
-  return sections;
+  return [seats]; // 분단을 쓰지 않으므로 하나의 목록으로 반환
 }
 
 let seatAssignByRoom = {}; // roomName -> { 'r_c': student }
@@ -1005,38 +988,20 @@ function autoAssign(){
   currentAssignRoom = roomName;
   const room = rooms[roomName];
   const sections = buildSectionSeatLists(room);
+  const seatKeys = sections[0] || [];
 
   const students = window.importedStudents.slice();
-  const male = students.filter(s => /^남/.test(s.gender));
-  const female = students.filter(s => /^여/.test(s.gender));
-  const other = students.filter(s => !/^남/.test(s.gender) && !/^여/.test(s.gender));
 
-  // 분단을 성별에 그리디 배정 (분단 전체가 한 성별)
-  const secOrder = sections.map((seats,i)=>({i,size:seats.length})).sort((a,b)=>b.size-a.size);
-  let needMale = male.length, needFemale = female.length;
-  const secGender = {};
-  secOrder.forEach(({i,size}) => {
-    if (needMale >= needFemale) { secGender[i]='남'; needMale -= size; }
-    else { secGender[i]='여'; needFemale -= size; }
-  });
-
-  const seatsByGender = {'남':[], '여':[]};
-  sections.forEach((seats,i) => { seatsByGender[secGender[i]].push(...seats); });
+  // 분단(남녀 분리)은 현재 사용하지 않음 — 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로만 채움
+  const comboOrder = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
+  const sorted = students.slice().sort((a,b)=> comboOrder.indexOf(a.combo)-comboOrder.indexOf(b.combo) || a.ban.localeCompare(b.ban,'ko') || a.name.localeCompare(b.name,'ko'));
 
   const seatAssign = {};
   const unplaced = [];
-  function fillGenderGroup(list, seatKeys){
-    const order = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
-    const sorted = list.slice().sort((a,b)=> order.indexOf(a.combo)-order.indexOf(b.combo) || a.ban.localeCompare(b.ban,'ko') || a.name.localeCompare(b.name,'ko'));
-    let idx = 0;
-    sorted.forEach(stu => {
-      if (idx < seatKeys.length) { seatAssign[seatKeys[idx]] = stu; idx++; }
-      else unplaced.push(stu);
-    });
-  }
-  fillGenderGroup(male, seatsByGender['남']);
-  fillGenderGroup(female, seatsByGender['여']);
-  other.forEach(s => unplaced.push(s)); // 성별 미상은 수동 배치 필요
+  sorted.forEach((stu, idx) => {
+    if (idx < seatKeys.length) seatAssign[seatKeys[idx]] = stu;
+    else unplaced.push(stu);
+  });
 
   seatAssignByRoom[roomName] = seatAssign;
   unplacedByRoom[roomName] = unplaced;
@@ -1081,7 +1046,6 @@ function renderAssignGrid(room){
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
   grid.style.gridTemplateColumns = `repeat(${room.cols}, 64px)`;
-  const sortedCuts = [...room.cuts].sort((a,b)=>a-b);
   const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row', false, false);
   for (let r=1;r<=room.rows;r++){
     for (let c=1;c<=room.cols;c++){
@@ -1092,7 +1056,6 @@ function renderAssignGrid(room){
       const num = numbers[key];
       div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
-      div.style.borderLeft = (sortedCuts.includes(c-1)||c===1) ? '3px solid var(--accent)' : '1px solid var(--border)';
       if (num) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         div.onclick = () => onSeatClick(key);
