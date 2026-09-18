@@ -53,6 +53,8 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 .seat-grid{display:inline-grid;gap:4px}
 .seat{width:64px;height:44px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center;line-height:1.3;position:relative}
 .seat.blank{background:repeating-linear-gradient(45deg,#eee,#eee 4px,#fafafa 4px,#fafafa 8px);cursor:default;border-style:dashed}
+.seat.unusable{background:repeating-linear-gradient(45deg,#ddd,#ddd 4px,#f5f5f5 4px,#f5f5f5 8px);cursor:pointer;border-style:dashed;color:var(--text3);font-size:10px;display:flex;align-items:center;justify-content:center}
+.seat.aisle{background:repeating-linear-gradient(135deg,#e0f0ee,#e0f0ee 4px,#f5fbfa 4px,#f5fbfa 8px);cursor:pointer;border-style:dotted;color:var(--accent2);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.sel{outline:2px solid var(--accent2);outline-offset:1px}
 .seat .sn{position:absolute;top:1px;left:3px;font-size:8px;color:var(--text3)}
 .seat.cat-sci{background:rgba(74,134,217,.14)}
@@ -69,6 +71,8 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   .no-print{display:none!important}
   .seat{border:1px solid #888}
   .seat.blank{background:#ddd}
+  .seat.unusable{background:#ddd}
+  .seat.aisle{background:#eef7f6}
 }
 </style>
 </head>
@@ -145,21 +149,38 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 2: ROOM SETUP -->
 <div class="panel" id="panel-room">
   <div class="s-title">강의실 배치 설정</div>
-  <div class="s-sub">행/열 수와 분단(남녀 분리 단위) 경계를 정하고, 사용하지 않는 자리는 클릭해서 빈자리로 표시하세요. 정확한 배치표를 받으면 다시 여기서 수정하시면 됩니다. (101~104/201~204/S01/S02호는 처음 접속 시 자동으로 기본 틀이 만들어져 있어요. F01호는 사다리꼴 구조라 자동생성 대상에서 빠져있으니 직접 만들어주세요.)</div>
+  <div class="s-sub">행×열로 그리드를 만든 뒤, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다. (101~104/201~204/S01/S02호는 처음 접속 시 기본 틀이 자동으로 만들어져 있어요. F01호는 사다리꼴 구조라 자동생성 대상에서 빠져있으니 직접 만들어주세요.)</div>
 
   <div class="room-list" id="room-list"></div>
 
   <div class="card">
     <div class="row">
       <div class="field"><label class="field-label">강의실 이름</label><input type="text" id="room-name" placeholder="예: 101호"></div>
-      <div class="field"><label class="field-label">행(rows)</label><input type="number" id="room-rows" value="14" min="1"></div>
-      <div class="field"><label class="field-label">열(cols)</label><input type="number" id="room-cols" value="8" min="1"></div>
-      <div class="field" style="flex:2"><label class="field-label">분단 경계 (쉼표로 구분, 이 열 다음에서 분단이 나뉨. 예: 8열이고 "4"면 1-4열/5-8열 두 분단)</label><input type="text" id="room-cuts" style="width:100%" value="4"></div>
+      <div class="field"><label class="field-label">행</label><input type="number" id="room-rows" value="14" min="1"></div>
+      <div style="align-self:flex-end;padding-bottom:9px;font-weight:700;color:var(--text3)">X</div>
+      <div class="field"><label class="field-label">열</label><input type="number" id="room-cols" value="8" min="1"></div>
+      <div style="align-self:flex-end"><button class="btn btn-ghost btn-sm" onclick="generateRoomGrid()">생성</button></div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="renderRoomGrid()">그리드 미리보기 생성</button>
-    <button class="btn btn-primary btn-sm" onclick="saveRoom()">저장</button>
+
+    <div class="row" style="align-items:center;margin-top:4px">
+      <label style="font-size:12px"><input type="radio" name="numdir" value="row" checked onchange="renderRoomGrid()"> 가로</label>
+      <label style="font-size:12px"><input type="radio" name="numdir" value="col" onchange="renderRoomGrid()"> 세로</label>
+      <span style="width:1px;height:16px;background:var(--border)"></span>
+      <label style="font-size:12px"><input type="checkbox" id="inc-unusable" onchange="renderRoomGrid()"> 비사용 포함</label>
+      <label style="font-size:12px"><input type="checkbox" id="inc-aisle" onchange="renderRoomGrid()"> 통로 포함</label>
+    </div>
+
+    <div class="field" style="margin-top:8px"><label class="field-label">분단 경계 (쉼표로 구분, 이 열 다음에서 분단이 나뉨. 예: 8열이고 "4"면 1-4열/5-8열 두 분단)</label><input type="text" id="room-cuts" style="width:100%" value="4"></div>
+
+    <div class="row" style="align-items:center;margin-top:10px">
+      <span style="font-size:12px;color:var(--text2);font-weight:600">칠하기 모드:</span>
+      <label style="font-size:12px"><input type="radio" name="paintmode" value="unusable" checked> 비사용</label>
+      <label style="font-size:12px"><input type="radio" name="paintmode" value="aisle"> 통로</label>
+    </div>
+    <div class="notice notice-info" style="margin-top:8px">그리드에서 자리를 클릭하면 위에서 고른 모드(비사용/통로)로 칠해지고, 다시 클릭하면 좌석으로 되돌아옵니다. 번호는 비사용·통로 칸을 건너뛰고 매겨져요. "포함" 체크박스는 그 유형을 좌석처럼 다시 셀지 여부예요 (예: 이번 시험엔 통로도 좌석으로 쓸 때).</div>
+
+    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveRoom()">저장</button>
     <span id="room-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
-    <div class="notice notice-info" style="margin-top:12px">미리보기에서 자리를 클릭하면 사용/빈자리(회색 빗금)로 토글됩니다. 통로·교탁 위치를 빈자리로 표시해주세요.</div>
     <div class="grid-wrap" id="room-grid-preview" style="margin-top:10px"></div>
   </div>
 </div>
@@ -490,7 +511,7 @@ async function loadRoomList(){
     rooms = {};
     snap.docs.forEach(d => {
       const data = d.data();
-      rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], blanks:new Set(data.blanks||[]) };
+      rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], cellTypes: data.cellTypes || blanksArrToCellTypes(data.blanks||[], 'unusable'), numberDir: data.numberDir||'row' };
     });
     if (snap.empty) {
       await bulkCreateRooms(true);
@@ -513,36 +534,72 @@ function loadRoomIntoEditor(name){
   document.getElementById('room-rows').value = r.rows;
   document.getElementById('room-cols').value = r.cols;
   document.getElementById('room-cuts').value = r.cuts.join(',');
+  document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value === (r.numberDir||'row')));
+  editorCellTypes = { ...(r.cellTypes||{}) };
   renderRoomList();
   renderRoomGrid();
 }
 
-let editorBlanks = new Set();
+// 좌석 번호 계산: 비사용/통로(포함 체크 안 된 것만)는 건너뛰고, 선택한 방향(가로/세로)대로 순서대로 번호를 매김
+function computeSeatNumbers(rows, cols, cellTypes, numberDir, includeUnusable, includeAisle){
+  const numbers = {};
+  const order = [];
+  if (numberDir === 'col') {
+    for (let c=1;c<=cols;c++) for (let r=1;r<=rows;r++) order.push(`${r}_${c}`);
+  } else {
+    for (let r=1;r<=rows;r++) for (let c=1;c<=cols;c++) order.push(`${r}_${c}`);
+  }
+  let n = 0;
+  order.forEach(key => {
+    const type = cellTypes[key];
+    const isSeat = !type || (type==='unusable' && includeUnusable) || (type==='aisle' && includeAisle);
+    if (isSeat) { n++; numbers[key] = n; }
+  });
+  return numbers;
+}
+
+let editorCellTypes = {}; // 'r_c' -> 'unusable' | 'aisle'
+
+// "생성" 버튼: 새 크기로 그리드를 만들되, 같은 강의실의 저장된 크기와 일치하면 기존 비사용/통로 표시를 불러옴
+function generateRoomGrid(){
+  const rows = parseInt(document.getElementById('room-rows').value)||1;
+  const cols = parseInt(document.getElementById('room-cols').value)||1;
+  if (currentRoomName && rooms[currentRoomName] && rooms[currentRoomName].rows===rows && rooms[currentRoomName].cols===cols) {
+    editorCellTypes = { ...(rooms[currentRoomName].cellTypes||{}) };
+  } else {
+    editorCellTypes = {};
+  }
+  renderRoomGrid();
+}
+
 function renderRoomGrid(){
   const rows = parseInt(document.getElementById('room-rows').value)||1;
   const cols = parseInt(document.getElementById('room-cols').value)||1;
   const cuts = document.getElementById('room-cuts').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
-  if (currentRoomName && rooms[currentRoomName] && rooms[currentRoomName].rows===rows && rooms[currentRoomName].cols===cols) {
-    editorBlanks = new Set(rooms[currentRoomName].blanks);
-  } else {
-    editorBlanks = new Set();
-  }
+  const numberDir = document.querySelector('input[name=numdir]:checked').value;
+  const includeUnusable = document.getElementById('inc-unusable').checked;
+  const includeAisle = document.getElementById('inc-aisle').checked;
+  const numbers = computeSeatNumbers(rows, cols, editorCellTypes, numberDir, includeUnusable, includeAisle);
   const wrap = document.getElementById('room-grid-preview');
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
   grid.style.gridTemplateColumns = `repeat(${cols}, 64px)`;
-  let seatNo = 0;
   for (let r=1;r<=rows;r++){
     for (let c=1;c<=cols;c++){
       const key = `${r}_${c}`;
-      const isBlank = editorBlanks.has(key);
-      seatNo++;
+      const type = editorCellTypes[key];
       const section = getSectionIndex(c, cuts);
       const div = document.createElement('div');
-      div.className = 'seat ' + (isBlank?'blank':'');
+      const num = numbers[key];
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : '');
       div.style.borderLeft = (cuts.includes(c-1)||c===1) ? '3px solid var(--accent)' : '1px solid var(--border)';
-      div.innerHTML = isBlank ? '' : `<span class="sn">${seatNo}</span>분단${section+1}`;
-      div.onclick = () => { if (editorBlanks.has(key)) editorBlanks.delete(key); else editorBlanks.add(key); renderRoomGrid(); };
+      div.innerHTML = num ? `<span class="sn">${num}</span>분단${section+1}` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
+      div.onclick = () => {
+        const mode = document.querySelector('input[name=paintmode]:checked').value;
+        if (editorCellTypes[key] === mode) delete editorCellTypes[key];
+        else editorCellTypes[key] = mode;
+        renderRoomGrid();
+      };
       grid.appendChild(div);
     }
   }
@@ -558,15 +615,23 @@ function getSectionIndex(col, cuts){
 }
 
 // ── 기본 강의실 8개 일괄 생성 (101~104, 201~204: 8열x20행, 좌4/우4 분단) ──
-const ROOM_PRESETS = ['101호','102호','103호','104호','201호','202호','203호','204호'].map(name => ({
-  name, rows:20, cols:8, cuts:[4], blanks:[]
-}));
+function blanksArrToCellTypes(arr, type){
+  const o = {};
+  arr.forEach(k => o[k] = type);
+  return o;
+}
+
+const ROOM_PRESETS = ['101호','102호','103호','104호','201호','202호','203호','204호'].map(name => {
+  const rows = (name==='103호') ? 19 : 20;
+  const blanks = (name==='101호' || name==='102호') ? ['10_7','12_2'] : []; // 79번, 90번 자리 = 기둥 (확인됨)
+  return { name, rows, cols:8, cuts:[4], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'unusable') };
+});
 
 // S01: 7행 x 10열, 실제 좌석은 홀수열(1,3,5,7,9)뿐 — 짝수열은 전부 통로(구조적 빈자리)
 (function(){
   const blanks = [];
   for (let r=1;r<=7;r++) for (const c of [2,4,6,8,10]) blanks.push(`${r}_${c}`);
-  ROOM_PRESETS.push({ name:'S01호', rows:7, cols:10, cuts:[6], blanks });
+  ROOM_PRESETS.push({ name:'S01호', rows:7, cols:10, cuts:[6], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'aisle') });
 })();
 
 // S02: 20행 x 12열, 3열 단위 그룹(2석+통로1) 반복 — 1행만 앞쪽이 비어 좌석이 더 적음
@@ -574,7 +639,7 @@ const ROOM_PRESETS = ['101호','102호','103호','104호','201호','202호','203
   const blanks = [];
   for (let r=2;r<=20;r++) for (const c of [3,6,9,12]) blanks.push(`${r}_${c}`);
   for (const c of [1,2,3,6,10,11,12]) blanks.push(`1_${c}`); // 1행 앞쪽 교탁 여백
-  ROOM_PRESETS.push({ name:'S02호', rows:20, cols:12, cuts:[], blanks });
+  ROOM_PRESETS.push({ name:'S02호', rows:20, cols:12, cuts:[], numberDir:'row', cellTypes: blanksArrToCellTypes(blanks, 'aisle') });
 })();
 
 
@@ -587,7 +652,7 @@ async function bulkCreateRooms(silent){
       const doc = await db.collection('examSeatingRooms').doc(preset.name).get();
       if (doc.exists) { skipped++; continue; }
       await db.collection('examSeatingRooms').doc(preset.name).set({
-        rows: preset.rows, cols: preset.cols, cuts: preset.cuts, blanks: preset.blanks,
+        rows: preset.rows, cols: preset.cols, cuts: preset.cuts, cellTypes: preset.cellTypes, numberDir: preset.numberDir,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       created++;
@@ -604,9 +669,10 @@ async function saveRoom(){
   const rows = parseInt(document.getElementById('room-rows').value)||1;
   const cols = parseInt(document.getElementById('room-cols').value)||1;
   const cuts = document.getElementById('room-cuts').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
+  const numberDir = document.querySelector('input[name=numdir]:checked').value;
   try {
     await db.collection('examSeatingRooms').doc(name).set({
-      rows, cols, cuts, blanks:[...editorBlanks], updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      rows, cols, cuts, numberDir, cellTypes: editorCellTypes, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     statusEl.textContent = '✓ 저장됨';
     currentRoomName = name;
@@ -647,18 +713,22 @@ function selectRoomTab(name){
 }
 
 function buildSectionSeatLists(room){
-  // 분단별 좌석 목록(행-열 순서), 각 분단은 col 범위로 결정
+  // 분단별 좌석 목록(행-열 순서), 각 분단은 col 범위로 결정. 비사용/통로 칸은 배정에서 제외.
   const sorted = [...room.cuts].sort((a,b)=>a-b);
   const numSections = sorted.length + 1;
   const sections = Array.from({length:numSections}, ()=>[]);
-  for (let r=1;r<=room.rows;r++){
-    for (let c=1;c<=room.cols;c++){
-      const key = `${r}_${c}`;
-      if (room.blanks.has(key)) continue;
-      const s = getSectionIndex(c, sorted);
-      sections[s].push(key);
-    }
+  const order = [];
+  if (room.numberDir === 'col') {
+    for (let c=1;c<=room.cols;c++) for (let r=1;r<=room.rows;r++) order.push([r,c]);
+  } else {
+    for (let r=1;r<=room.rows;r++) for (let c=1;c<=room.cols;c++) order.push([r,c]);
   }
+  order.forEach(([r,c]) => {
+    const key = `${r}_${c}`;
+    if (room.cellTypes && room.cellTypes[key]) return; // 비사용/통로는 배정 대상에서 제외
+    const s = getSectionIndex(c, sorted);
+    sections[s].push(key);
+  });
   return sections;
 }
 
@@ -752,20 +822,22 @@ function renderAssignGrid(room){
   grid.className = 'seat-grid';
   grid.style.gridTemplateColumns = `repeat(${room.cols}, 64px)`;
   const sortedCuts = [...room.cuts].sort((a,b)=>a-b);
-  let seatNo = 0;
+  const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row', false, false);
   for (let r=1;r<=room.rows;r++){
     for (let c=1;c<=room.cols;c++){
       const key = `${r}_${c}`;
-      seatNo++;
-      const isBlank = room.blanks.has(key);
+      const type = (room.cellTypes||{})[key];
       const div = document.createElement('div');
       const stu = seatAssign[key];
-      div.className = 'seat ' + (isBlank?'blank':(stu?comboClass(stu.combo):''));
+      const num = numbers[key];
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : (stu?comboClass(stu.combo):''));
       div.classList.toggle('sel', key===selectedSeatKey);
       div.style.borderLeft = (sortedCuts.includes(c-1)||c===1) ? '3px solid var(--accent)' : '1px solid var(--border)';
-      if (!isBlank) {
-        div.innerHTML = `<span class="sn">${seatNo}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
+      if (num) {
+        div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         div.onclick = () => onSeatClick(key);
+      } else {
+        div.innerHTML = type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '';
       }
       grid.appendChild(div);
     }
