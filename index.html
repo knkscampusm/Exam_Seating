@@ -594,7 +594,7 @@ const REQUIRED_FIELDS = [
   {key:'subj1', label:'탐구1', aliases:['탐구1','탐구I','탐구선택1']},
   {key:'subj2', label:'탐구2', aliases:['탐구2','탐구II','탐구선택2']},
   {key:'gender', label:'성별', aliases:['성별','성']},
-  {key:'enrollDate', label:'등원일', aliases:['등원일']}
+  {key:'enrollDate', label:'등원일', aliases:['등원일','등원예정일']}
 ];
 
 function readExcelFile(file){
@@ -654,8 +654,10 @@ function applyMapping(){
     const get = k => fieldMap[k]>=0 ? String(r[fieldMap[k]]||'').trim() : '';
     const sid = get('sid');
     if (!sid) continue;
+    const nameVal = get('name');
+    if (nameVal.trim() === '테스트') continue; // 테스트용 더미 데이터 제외
     students.push({
-      ban:get('ban'), group:get('group'), sid, name:get('name'),
+      ban:get('ban'), group:get('group'), sid, name:nameVal,
       subj1:get('subj1'), subj2:get('subj2'), gender:get('gender'),
       enrollDate: normDate(get('enrollDate')),
       combo: comboCategory(get('subj1'), get('subj2'))
