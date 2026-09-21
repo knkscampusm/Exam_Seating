@@ -161,15 +161,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     <span id="import-status" style="font-size:12px;margin-top:10px;display:block;color:var(--text2)"></span>
   </div>
 
-  <div id="mapping-card" style="display:none">
-    <div class="card">
-      <div class="s-title" style="font-size:14px">열 매칭 확인</div>
-      <div class="s-sub">자동으로 못 찾은 항목은 직접 선택해주세요.</div>
-      <div id="mapping-fields" class="row"></div>
-      <button class="btn btn-primary btn-sm" onclick="applyMapping()">이 매칭으로 적용</button>
-    </div>
-  </div>
-
   <div id="preview-card" style="display:none">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -325,6 +316,31 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <div><label class="field-label" style="visibility:hidden">·</label><button class="btn btn-primary btn-sm" style="height:34px;box-sizing:border-box" onclick="saveRoom()">저장</button></div>
     </div>
     <div style="margin-top:6px"><span id="room-status" style="font-size:12px;color:var(--text2)"></span></div>
+
+    <div class="row" style="align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <span class="field-label" style="margin-bottom:0">기본 배정 대상</span>
+      <div class="seg-group">
+        <label><input type="radio" name="room-filter-type" value="none" checked onchange="onRoomFilterTypeChange()">없음</label>
+        <label><input type="radio" name="room-filter-type" value="ban" onchange="onRoomFilterTypeChange()">반</label>
+        <label><input type="radio" name="room-filter-type" value="gender" onchange="onRoomFilterTypeChange()">성별</label>
+      </div>
+      <select id="room-filter-ban" style="display:none;width:80px">
+        <option value="1">1반</option>
+        <option value="2">2반</option>
+        <option value="3">3반</option>
+        <option value="4">4반</option>
+        <option value="5">5반</option>
+        <option value="6">6반</option>
+        <option value="7">7반</option>
+        <option value="8">8반</option>
+        <option value="9">9반</option>
+      </select>
+      <select id="room-filter-gender" style="display:none;width:90px">
+        <option value="남">남자</option>
+        <option value="여">여자</option>
+      </select>
+      <span class="s-sub" style="margin:0;flex:1">이 강의실에 자동배치할 때 기본으로 걸러낼 조건이에요. 언제든 다시 바꿀 수 있어요.</span>
+    </div>
 
     <div class="grid-wrap" id="room-grid-preview" style="margin-top:14px"></div>
   </div>
@@ -557,7 +573,6 @@ function selectExam(name){
   const statusEl = document.getElementById('import-status');
   if (statusEl) statusEl.textContent = cnt ? `이 모의고사에 이미 ${cnt}명 업로드되어 있어요. 새로 올리면 덮어씁니다.` : '';
   document.getElementById('preview-card').style.display = 'none';
-  document.getElementById('mapping-card').style.display = 'none';
 }
 
 async function saveExam(){
@@ -622,31 +637,22 @@ function readExcelFile(file){
 
 function buildMappingUI(){
   fieldMap = {};
-  let allMatched = true;
-  const mapEl = document.getElementById('mapping-fields');
-  mapEl.innerHTML = '';
+  const missing = [];
   REQUIRED_FIELDS.forEach(f => {
     let idx = rawHeader.findIndex(h => f.aliases.includes(h));
     if (idx === -1 && f.key === 'enrollDate' && rawHeader.length > 19) idx = 19; // T열 기본값
-    if (idx === -1) allMatched = false;
+    if (idx === -1) missing.push(f.label);
     fieldMap[f.key] = idx;
-    const div = document.createElement('div');
-    div.className = 'field';
-    div.innerHTML = `<label class="field-label">${f.label}${idx===-1?' <span style="color:var(--red)">(자동매칭 실패)</span>':''}</label>
-      <select data-key="${f.key}" style="width:100%">
-        <option value="-1">(사용 안함)</option>
-        ${rawHeader.map((h,i)=>`<option value="${i}" ${i===idx?'selected':''}>${h}</option>`).join('')}
-      </select>`;
-    mapEl.appendChild(div);
   });
-  document.getElementById('mapping-card').style.display = '';
-  if (allMatched) applyMapping();
+  if (missing.length) {
+    alert(`엑셀에서 다음 항목의 열을 찾지 못해 업로드를 중단했습니다:\n${missing.join(', ')}\n\n열 이름을 확인한 뒤 다시 업로드해주세요.`);
+    document.getElementById('import-status').textContent = '❌ 업로드 중단됨 (열 매칭 실패: ' + missing.join(', ') + ')';
+    return;
+  }
+  applyMapping();
 }
 
 function applyMapping(){
-  document.querySelectorAll('#mapping-fields select').forEach(sel => {
-    fieldMap[sel.dataset.key] = parseInt(sel.value);
-  });
   let students = [];
   for (let i=1;i<rawRows.length;i++){
     const r = rawRows[i];
@@ -734,7 +740,7 @@ async function loadRoomList(){
     rooms = {};
     snap.docs.forEach(d => {
       const data = d.data();
-      rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], cellTypes: data.cellTypes || blanksArrToCellTypes(data.blanks||[], 'unusable'), numberDir: data.numberDir||'row', updatedAt: data.updatedAt && data.updatedAt.toDate ? data.updatedAt.toDate() : null };
+      rooms[d.id] = { rows:data.rows, cols:data.cols, cuts:data.cuts||[], cellTypes: data.cellTypes || blanksArrToCellTypes(data.blanks||[], 'unusable'), numberDir: data.numberDir||'row', filterType: data.filterType||'none', filterValue: data.filterValue||'', updatedAt: data.updatedAt && data.updatedAt.toDate ? data.updatedAt.toDate() : null };
     });
   } catch(e){ console.error(e); }
   renderRoomList();
@@ -758,9 +764,10 @@ function renderRoomMgrList(){
     const updatedLabel = room.updatedAt
       ? `${room.updatedAt.getFullYear()}-${String(room.updatedAt.getMonth()+1).padStart(2,'0')}-${String(room.updatedAt.getDate()).padStart(2,'0')} ${String(room.updatedAt.getHours()).padStart(2,'0')}:${String(room.updatedAt.getMinutes()).padStart(2,'0')} 수정`
       : '';
+    const filterLabel = room.filterType==='ban' ? `${room.filterValue}반` : room.filterType==='gender' ? `${room.filterValue==='남'?'남자':'여자'}` : '';
     return `<div class="li-item">
       <div style="flex:1">
-        <div class="li-name">${n}</div>
+        <div class="li-name">${n}${filterLabel?` <span style="font-size:11px;font-weight:600;color:var(--accent2);background:rgba(43,173,160,.1);padding:2px 7px;border-radius:8px;margin-left:4px">기본: ${filterLabel}</span>`:''}</div>
         <div class="li-sub">${room.rows}행×${room.cols}열 · 활성 ${activeSeats}석 · 배정 ${assigned}명</div>
       </div>
       ${updatedLabel ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;margin-right:6px">${updatedLabel}</span>` : ''}
@@ -805,6 +812,12 @@ async function confirmDeleteOneRoom(name){
   } catch(e) { alert('삭제 실패: ' + e.message); }
 }
 
+function onRoomFilterTypeChange(){
+  const type = document.querySelector('input[name=room-filter-type]:checked').value;
+  document.getElementById('room-filter-ban').style.display = type==='ban' ? '' : 'none';
+  document.getElementById('room-filter-gender').style.display = type==='gender' ? '' : 'none';
+}
+
 function startNewRoom(){
   currentRoomName = null;
   document.getElementById('room-name').value = '';
@@ -812,6 +825,8 @@ function startNewRoom(){
   document.getElementById('room-cols').value = 8;
   document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value==='row'));
   document.querySelectorAll('input[name=paintmode]').forEach(el => el.checked = (el.value==='unusable'));
+  document.querySelectorAll('input[name=room-filter-type]').forEach(el => el.checked = (el.value==='none'));
+  onRoomFilterTypeChange();
   editorCellTypes = {};
   document.getElementById('room-status').textContent = '';
   renderRoomGrid();
@@ -853,6 +868,11 @@ function loadRoomIntoEditor(name){
   document.getElementById('room-cols').value = r.cols;
   document.querySelectorAll('input[name=numdir]').forEach(el => el.checked = (el.value === (r.numberDir||'row')));
   document.querySelectorAll('input[name=paintmode]').forEach(el => el.checked = (el.value==='unusable'));
+  const filterType = r.filterType || 'none';
+  document.querySelectorAll('input[name=room-filter-type]').forEach(el => el.checked = (el.value===filterType));
+  if (filterType === 'ban') document.getElementById('room-filter-ban').value = r.filterValue || '1';
+  if (filterType === 'gender') document.getElementById('room-filter-gender').value = r.filterValue || '남';
+  onRoomFilterTypeChange();
   editorCellTypes = { ...(r.cellTypes||{}) };
   renderRoomGrid();
 }
@@ -942,9 +962,13 @@ async function saveRoom(){
   const cols = parseInt(document.getElementById('room-cols').value)||1;
   const numberDir = document.querySelector('input[name=numdir]:checked').value;
   const cuts = [];
+  const filterType = document.querySelector('input[name=room-filter-type]:checked').value;
+  const filterValue = filterType==='ban' ? document.getElementById('room-filter-ban').value
+                     : filterType==='gender' ? document.getElementById('room-filter-gender').value
+                     : '';
   try {
     await db.collection('examSeatingRooms').doc(name).set({
-      rows, cols, cuts, numberDir, cellTypes: editorCellTypes, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      rows, cols, cuts, numberDir, cellTypes: editorCellTypes, filterType, filterValue, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     statusEl.textContent = '✓ 저장됨';
     currentRoomName = name;
@@ -1195,7 +1219,16 @@ function autoAssign(){
   const sections = buildSectionSeatLists(room);
   const seatKeys = sections[0] || [];
 
-  const students = window.importedStudents.slice();
+  let students = window.importedStudents.slice();
+  if (room.filterType === 'ban') {
+    students = students.filter(s => String(s.ban).trim() === String(room.filterValue).trim());
+  } else if (room.filterType === 'gender') {
+    students = students.filter(s => (s.gender||'').trim().startsWith(room.filterValue));
+  }
+  if (room.filterType !== 'none' && students.length === 0) {
+    alert(`이 강의실의 기본 배정 대상(${room.filterType==='ban'?room.filterValue+'반':room.filterValue==='남'?'남자':'여자'})에 해당하는 학생이 명단에 없습니다.`);
+    return;
+  }
 
   // 분단(남녀 분리)은 현재 사용하지 않음 — 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로만 채움
   const comboOrder = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
