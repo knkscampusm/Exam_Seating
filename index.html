@@ -76,6 +76,9 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 .seat.unusable{background:repeating-linear-gradient(45deg,#ddd,#ddd 4px,#f5f5f5 4px,#f5f5f5 8px);cursor:pointer;border-style:dashed;color:var(--text3);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.aisle{background:repeating-linear-gradient(135deg,#e0f0ee,#e0f0ee 4px,#f5fbfa 4px,#f5fbfa 8px);cursor:pointer;border-style:dotted;color:var(--accent2);font-size:10px;display:flex;align-items:center;justify-content:center}
 .seat.unseatable{background:repeating-linear-gradient(45deg,#fde2e1,#fde2e1 4px,#fff5f5 4px,#fff5f5 8px);border-color:var(--red);cursor:pointer}
+.seat.zone-male{background:rgba(74,134,217,.16);border-color:rgba(74,134,217,.5)}
+.seat.zone-female{background:rgba(241,201,74,.22);border-color:rgba(241,201,74,.6)}
+.seat .zone-label{font-size:8px;font-weight:700;opacity:.7}
 .seat.unseatable .sn{background:var(--red)}
 .seat.unseatable .ub-label{color:var(--red);font-size:9px;font-weight:700}
 .seat.sel{outline:2px solid var(--accent2);outline-offset:1px}
@@ -308,6 +311,8 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
           <label><input type="radio" name="paintmode" value="unusable" checked>비사용</label>
           <label><input type="radio" name="paintmode" value="aisle">통로</label>
           <label><input type="radio" name="paintmode" value="unseatable">착석불가</label>
+          <label><input type="radio" name="paintmode" value="male">남 구역</label>
+          <label><input type="radio" name="paintmode" value="female">여 구역</label>
         </div>
       </div>
       <div style="flex:1"></div>
@@ -898,7 +903,7 @@ function computeSeatNumbers(rows, cols, cellTypes, numberDir){
   let n = 0;
   order.forEach(key => {
     const type = cellTypes[key];
-    const isNumbered = !type || type==='unseatable'; // 착석불가는 책상이라 번호 유지, 비사용/통로는 번호 없음
+    const isNumbered = !type || type==='unseatable' || type==='male' || type==='female'; // 착석불가·남/여 구역은 책상이라 번호 유지, 비사용/통로는 번호 없음
     if (isNumbered) { n++; numbers[key] = n; }
   });
   return numbers;
@@ -937,9 +942,11 @@ function renderRoomGrid(){
       const type = editorCellTypes[key];
       const div = document.createElement('div');
       const num = numbers[key];
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : type==='unseatable' ? 'unseatable' : '');
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'aisle' : type==='unseatable' ? 'unseatable' : type==='male' ? 'zone-male' : type==='female' ? 'zone-female' : '');
       if (type==='unseatable') {
         div.innerHTML = `<span class="sn">${num}</span><span class="ub-label">착석불가</span>`;
+      } else if (type==='male' || type==='female') {
+        div.innerHTML = `<span class="sn">${num}</span><span class="zone-label">${type==='male'?'남':'여'} 구역</span>`;
       } else {
         div.innerHTML = num ? `<span class="sn">${num}</span>` : (type==='unusable' ? '비사용' : type==='aisle' ? '통로' : '');
       }
@@ -1207,7 +1214,8 @@ function buildSectionSeatLists(room){
   }
   order.forEach(([r,c]) => {
     const key = `${r}_${c}`;
-    if (room.cellTypes && room.cellTypes[key]) return; // 비사용/통로는 배정 대상에서 제외
+    const t = room.cellTypes && room.cellTypes[key];
+    if (t === 'unusable' || t === 'aisle' || t === 'unseatable') return; // 이 세 유형만 배정 대상에서 제외
     seats.push(key);
   });
   return [seats]; // 분단을 쓰지 않으므로 하나의 목록으로 반환
@@ -1233,21 +1241,41 @@ function runAutoAssignForRoom(roomName){
   }
   if (room.filterType !== 'none' && students.length === 0) return { success:false, empty:true };
 
-  // 탐구조합 조건 없이, 반 → 성별 → 이름 순으로 정렬해서 채움
-  const sorted = students.slice().sort((a,b)=> {
+  // 탐구조합 조건 없이, 반 → 성별 → 이름 순으로 정렬
+  const sortFn = (a,b)=> {
     const ba = parseInt(a.ban)||0, bb = parseInt(b.ban)||0;
     if (ba !== bb) return ba - bb;
     const ga = a.gender||'', gb = b.gender||'';
     if (ga !== gb) return ga.localeCompare(gb,'ko');
     return a.name.localeCompare(b.name,'ko');
-  });
+  };
+
+  const cellTypes = room.cellTypes || {};
+  const maleSeats = seatKeys.filter(k => cellTypes[k] === 'male');
+  const femaleSeats = seatKeys.filter(k => cellTypes[k] === 'female');
+  const freeSeats = seatKeys.filter(k => cellTypes[k] !== 'male' && cellTypes[k] !== 'female');
 
   const seatAssign = {};
-  const unplaced = [];
-  sorted.forEach((stu, idx) => {
-    if (idx < seatKeys.length) seatAssign[seatKeys[idx]] = stu;
-    else unplaced.push(stu);
-  });
+  let unplaced = [];
+  function fillInOrder(seats, list){
+    const over = [];
+    list.forEach((stu, idx) => { if (idx < seats.length) seatAssign[seats[idx]] = stu; else over.push(stu); });
+    return over;
+  }
+
+  if (maleSeats.length || femaleSeats.length) {
+    // 남/여 구역이 지정된 강의실: 남 구역엔 남학생, 여 구역엔 여학생 먼저 채우고, 넘치는 인원은 자유석으로
+    const maleStu = students.filter(s => (s.gender||'').trim().startsWith('남')).sort(sortFn);
+    const femaleStu = students.filter(s => (s.gender||'').trim().startsWith('여')).sort(sortFn);
+    const otherStu = students.filter(s => { const g=(s.gender||'').trim(); return !g.startsWith('남') && !g.startsWith('여'); }).sort(sortFn);
+    const overflowMale = fillInOrder(maleSeats, maleStu);
+    const overflowFemale = fillInOrder(femaleSeats, femaleStu);
+    const leftover = [...overflowMale, ...overflowFemale, ...otherStu].sort(sortFn);
+    unplaced = fillInOrder(freeSeats, leftover);
+  } else {
+    const sorted = students.slice().sort(sortFn);
+    unplaced = fillInOrder(freeSeats, sorted);
+  }
 
   seatAssignByRoom[roomName] = seatAssign;
   unplacedByRoom[roomName] = unplaced;
