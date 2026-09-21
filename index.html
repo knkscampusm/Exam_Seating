@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>모의고사 좌석배치</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
@@ -54,6 +54,11 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:var(--surface2);color:var(--text2);font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
 td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--text);white-space:nowrap}
 .notice{padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;margin-bottom:14px}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(43,173,160,.04)}
+.upload-icon{font-size:26px;margin-bottom:8px}
+.upload-text{color:var(--text2);line-height:1.8;font-size:13px}
+.upload-text strong{color:var(--accent)}
 .notice-info{background:rgba(61,187,177,.08);border:1px solid rgba(61,187,177,.2);color:var(--accent2)}
 .notice-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#b8860b}
 .row{display:flex;gap:12px;flex-wrap:wrap}
@@ -116,7 +121,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <button class="btn btn-ghost btn-sm" onclick="toggleAdminMenu(event)">⚙ 관리자 메뉴 ▾</button>
       <div id="admin-menu-pop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);min-width:200px;padding:5px;z-index:1000">
         <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('import')">📋 모의고사 설정</button>
-        <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('import')">📤 데이터 가져오기</button>
         <button class="admin-menu-item" onclick="closeAdminMenu();selectAdminTab('room')">🏛 강의실 설정</button>
         <button class="admin-menu-item" onclick="closeAdminMenu();openSaveSnapshotPrompt()">💾 현재 배치 저장</button>
       </div>
@@ -130,6 +134,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
     <div id="room-tabs-header" style="display:flex;gap:2px"></div>
   </div>
+  <div class="tab admin-only" data-tabid="import-sheet" style="display:none;margin-left:auto" onclick="selectAdminTab('import-sheet')">📤 학생명단 가져오기</div>
 </div>
 
 <div class="main">
@@ -137,7 +142,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 1: IMPORT -->
 <div class="panel" id="panel-import">
   <div class="s-title">모의고사 선택</div>
-  <div class="s-sub">먼저 이번에 배치할 모의고사를 선택(또는 새로 등록)하세요. <b>필수</b> — 선택해야 다음 단계(데이터 가져오기)가 가능합니다. 시험일은 학생 등원일과 비교하는 데 쓰입니다.</div>
+  <div class="s-sub">먼저 이번에 배치할 모의고사를 선택(또는 새로 등록)하세요. <b>필수</b> — 선택해야 다음 단계(학생명단 가져오기)가 가능합니다. 시험일은 학생 등원일과 비교하는 데 쓰입니다.</div>
   <div class="card">
     <div class="row" style="align-items:flex-end">
       <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
@@ -145,22 +150,19 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     </div>
     <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
   </div>
+</div>
 
-  <div class="s-title">구글 스프레드시트에서 학생명단 가져오기</div>
-  <div class="s-sub">공개(링크 있는 모든 사용자 보기 가능) 상태의 시트만 가져올 수 있어요. 1회성으로만 불러오며 자동 동기화되지 않습니다.</div>
+<!-- TAB 1b: SHEET IMPORT -->
+<div class="panel" id="panel-import-sheet">
+  <div class="s-title">엑셀 파일에서 학생명단 가져오기</div>
+  <div class="s-sub">그때그때 최신 명단이 담긴 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
   <div class="card">
-    <div class="row">
-      <div class="field" style="flex:2">
-        <label class="field-label">스프레드시트 URL 또는 ID</label>
-        <input type="text" id="sheet-url" style="width:100%" value="https://docs.google.com/spreadsheets/d/1FuM7nxY12dVNQnvBT3OOI0JfBakpq-uuxV70eo4O4T0/edit?usp=sharing">
-      </div>
-      <div class="field">
-        <label class="field-label">시트(탭) 이름</label>
-        <input type="text" id="sheet-tab" style="width:100%" value="raw">
-      </div>
+    <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
+      <div class="upload-icon">📊</div>
+      <div class="upload-text"><strong>클릭하거나 파일을 드래그</strong>하세요<br>엑셀 파일 (.xlsx, .xls)</div>
+      <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none">
     </div>
-    <button class="btn btn-primary" onclick="importSheet()">가져오기</button>
-    <span id="import-status" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
+    <span id="import-status" style="font-size:12px;margin-top:10px;display:block;color:var(--text2)"></span>
   </div>
 
   <div id="mapping-card" style="display:none">
@@ -591,30 +593,27 @@ const REQUIRED_FIELDS = [
   {key:'enrollDate', label:'등원일', aliases:['등원일']}
 ];
 
-function extractSheetId(url){
-  const m = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  return m ? m[1] : url.trim();
-}
-
-async function importSheet(){
+function readExcelFile(file){
   const statusEl = document.getElementById('import-status');
   if (!selectedExam || !selectedExam.date) { statusEl.textContent = '먼저 모의고사를 선택(또는 등록)해주세요'; return; }
-  const id = extractSheetId(document.getElementById('sheet-url').value);
-  const tab = document.getElementById('sheet-tab').value.trim() || 'raw';
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
-  statusEl.textContent = '가져오는 중...';
-  try {
-    const res = await fetch(csvUrl);
-    if (!res.ok) throw new Error('시트를 읽을 수 없습니다 (공개 여부를 확인해주세요)');
-    const text = await res.text();
-    const parsed = Papa.parse(text.trim(), { skipEmptyLines:true });
-    rawRows = parsed.data;
-    rawHeader = rawRows[0].map(h=>String(h).trim());
-    statusEl.textContent = `✓ ${rawRows.length-1}행 불러옴`;
-    buildMappingUI();
-  } catch(err) {
-    statusEl.textContent = '실패: ' + err.message;
-  }
+  statusEl.textContent = '읽는 중...';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'array' });
+      const sheetName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'raw') || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:null });
+      if (!raw || raw.length < 2) { statusEl.textContent = '데이터가 없습니다'; return; }
+      rawRows = raw.map(row => row.map(cell => cell===null||cell===undefined ? '' : String(cell)));
+      rawHeader = rawRows[0].map(h => String(h).trim());
+      statusEl.textContent = `✓ "${sheetName}" 시트에서 ${rawRows.length-1}행 불러옴`;
+      buildMappingUI();
+    } catch(err) {
+      statusEl.textContent = '읽기 실패: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function buildMappingUI(){
@@ -1084,7 +1083,7 @@ function renderStats(){
   const el = document.getElementById('stats-content');
   const students = window.importedStudents || [];
   if (!students.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>가져온 학생명단이 없습니다. 관리자 메뉴 → 데이터 가져오기를 먼저 진행해주세요.</div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>가져온 학생명단이 없습니다. 관리자 모드 → "학생명단 가져오기" 탭에서 먼저 진행해주세요.</div>';
     return;
   }
   const male = students.filter(s=>/^남/.test(s.gender)).length;
@@ -1179,7 +1178,7 @@ function get_seatAssign(){ return seatAssignByRoom[currentAssignRoom] || (seatAs
 function autoAssign(){
   const roomName = assignRoomSelection;
   if (!roomName || !rooms[roomName]) { alert('강의실을 먼저 선택/저장해주세요'); return; }
-  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 → 데이터 가져오기에서 학생명단을 먼저 가져와주세요'); return; }
+  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "학생명단 가져오기" 탭에서 명단을 먼저 가져와주세요'); return; }
   currentAssignRoom = roomName;
   const room = rooms[roomName];
   const sections = buildSectionSeatLists(room);
@@ -1305,6 +1304,21 @@ function clearSelection(){ selectedSeatKey = null; renderAssignGrid(rooms[curren
 // ── INIT ──
 loadRoomList();
 loadExamList();
+
+(function initExcelUpload(){
+  const zone = document.getElementById('excel-upload-zone');
+  const input = document.getElementById('excel-file-input');
+  if (!zone || !input) return;
+  input.addEventListener('change', e => { if (e.target.files[0]) readExcelFile(e.target.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) readExcelFile(e.dataTransfer.files[0]);
+  });
+})();
+
 </script>
 </body>
 </html>
