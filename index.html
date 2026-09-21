@@ -134,15 +134,12 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
     <div id="room-tabs-header" style="display:flex;gap:2px"></div>
   </div>
-  <div class="tab admin-only" data-tabid="import-sheet" style="display:none;margin-left:auto" onclick="selectAdminTab('import-sheet')">📤 학생명단 가져오기</div>
-</div>
-
 <div class="main">
 
 <!-- TAB 1: IMPORT -->
 <div class="panel" id="panel-import">
-  <div class="s-title">모의고사 선택</div>
-  <div class="s-sub">먼저 이번에 배치할 모의고사를 선택(또는 새로 등록)하세요. <b>필수</b> — 선택해야 다음 단계(학생명단 가져오기)가 가능합니다. 시험일은 학생 등원일과 비교하는 데 쓰입니다.</div>
+  <div class="s-title">모의고사 설정</div>
+  <div class="s-sub">모의고사를 선택(또는 새로 등록)한 뒤, 그 모의고사에 쓸 학생명단 엑셀 파일을 업로드하세요. 모의고사마다 명단을 따로 관리합니다.</div>
   <div class="card">
     <div class="row" style="align-items:flex-end">
       <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
@@ -150,13 +147,10 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     </div>
     <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
   </div>
-</div>
 
-<!-- TAB 1b: SHEET IMPORT -->
-<div class="panel" id="panel-import-sheet">
-  <div class="s-title">엑셀 파일에서 학생명단 가져오기</div>
-  <div class="s-sub">그때그때 최신 명단이 담긴 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
   <div class="card">
+    <div class="s-title" style="font-size:14px">학생명단 업로드</div>
+    <div class="s-sub">선택한 모의고사에 쓸 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
     <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
       <div class="upload-icon">📊</div>
       <div class="upload-text"><strong>클릭하거나 파일을 드래그</strong>하세요<br>엑셀 파일 (.xlsx, .xls)</div>
@@ -536,9 +530,8 @@ function renderExamList(){
     return;
   }
   sel.innerHTML = names.map(n=>`<option value="${n}">${n} (${exams[n].date||'날짜없음'})</option>`).join('');
-  if (!selectedExam || !exams[selectedExam.name]) selectedExam = { name: names[0], date: exams[names[0]].date };
-  sel.value = selectedExam.name;
-  document.getElementById('exam-selected-info').textContent = `선택됨: ${selectedExam.name} (시험일: ${selectedExam.date || '미지정'})`;
+  const targetName = (selectedExam && exams[selectedExam.name]) ? selectedExam.name : names[0];
+  selectExam(targetName);
 }
 
 function openAddExamModal(){
@@ -548,12 +541,21 @@ function openAddExamModal(){
   document.getElementById('add-exam-modal').style.display = 'flex';
 }
 
+let studentsByExam = {}; // examName -> student array (모의고사별 업로드 명단)
+
 function selectExam(name){
   if (!exams[name]) return;
   selectedExam = { name, date: exams[name].date };
   const sel = document.getElementById('exam-select');
   if (sel) sel.value = name;
-  document.getElementById('exam-selected-info').textContent = `선택됨: ${name} (시험일: ${selectedExam.date || '미지정'})`;
+  window.importedStudents = studentsByExam[name] || [];
+  const cnt = window.importedStudents.length;
+  document.getElementById('exam-selected-info').textContent =
+    `선택됨: ${name} (시험일: ${selectedExam.date || '미지정'}) — 업로드된 학생 ${cnt}명`;
+  const statusEl = document.getElementById('import-status');
+  if (statusEl) statusEl.textContent = cnt ? `이 모의고사에 이미 ${cnt}명 업로드되어 있어요. 새로 올리면 덮어씁니다.` : '';
+  document.getElementById('preview-card').style.display = 'none';
+  document.getElementById('mapping-card').style.display = 'none';
 }
 
 async function saveExam(){
@@ -660,18 +662,23 @@ function applyMapping(){
   finalizeStudentList(students);
 }
 
+function setImportedStudents(students){
+  window.importedStudents = students;
+  if (selectedExam && selectedExam.name) studentsByExam[selectedExam.name] = students;
+}
+
 // 시험일과 등원일이 같은 학생을 걸러내 확인 모달을 띄우고, 그 결과를 반영해 최종 명단 확정
 let pendingStudentList = [];
 function finalizeStudentList(students){
   if (!selectedExam || !selectedExam.date) {
     // 모의고사가 선택 안 된 경우: 등원일 비교 없이 그대로 진행
-    window.importedStudents = students;
+    setImportedStudents(students);
     renderPreview(students);
     return;
   }
   const sameDay = students.filter(s => s.enrollDate === selectedExam.date);
   if (sameDay.length === 0) {
-    window.importedStudents = students;
+    setImportedStudents(students);
     renderPreview(students);
     return;
   }
@@ -697,7 +704,7 @@ function confirmEnrollModal(){
     if (!cb.checked) excludeSids.add(cb.dataset.sid);
   });
   const finalList = pendingStudentList.filter(s => !excludeSids.has(s.sid));
-  window.importedStudents = finalList;
+  setImportedStudents(finalList);
   document.getElementById('enroll-modal').style.display = 'none';
   renderPreview(finalList);
 }
@@ -1083,7 +1090,7 @@ function renderStats(){
   const el = document.getElementById('stats-content');
   const students = window.importedStudents || [];
   if (!students.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>가져온 학생명단이 없습니다. 관리자 모드 → "학생명단 가져오기" 탭에서 먼저 진행해주세요.</div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>가져온 학생명단이 없습니다. 관리자 모드 → "모의고사 설정"에서 모의고사를 선택하고 명단을 업로드해주세요.</div>';
     return;
   }
   const male = students.filter(s=>/^남/.test(s.gender)).length;
@@ -1178,7 +1185,7 @@ function get_seatAssign(){ return seatAssignByRoom[currentAssignRoom] || (seatAs
 function autoAssign(){
   const roomName = assignRoomSelection;
   if (!roomName || !rooms[roomName]) { alert('강의실을 먼저 선택/저장해주세요'); return; }
-  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "학생명단 가져오기" 탭에서 명단을 먼저 가져와주세요'); return; }
+  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "모의고사 설정"에서 이 모의고사의 학생명단을 먼저 업로드해주세요'); return; }
   currentAssignRoom = roomName;
   const room = rooms[roomName];
   const sections = buildSectionSeatLists(room);
