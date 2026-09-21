@@ -675,6 +675,11 @@ function applyMapping(){
 function setImportedStudents(students){
   window.importedStudents = students;
   if (selectedExam && selectedExam.name) studentsByExam[selectedExam.name] = students;
+  const result = autoAssignAllFilteredRooms();
+  if (result.assignedRooms) {
+    const statusEl = document.getElementById('import-status');
+    if (statusEl) statusEl.textContent += ` · 기본 배정 대상이 설정된 강의실 ${result.assignedRooms}개에 자동배치 완료`;
+  }
 }
 
 // 시험일과 등원일이 같은 학생을 걸러내 확인 모달을 띄우고, 그 결과를 반영해 최종 명단 확정
@@ -1210,12 +1215,9 @@ let currentAssignRoom = null;
 let selectedSeatKey = null;
 function get_seatAssign(){ return seatAssignByRoom[currentAssignRoom] || (seatAssignByRoom[currentAssignRoom] = {}); }
 
-function autoAssign(){
-  const roomName = assignRoomSelection;
-  if (!roomName || !rooms[roomName]) { alert('강의실을 먼저 선택/저장해주세요'); return; }
-  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "모의고사 설정"에서 이 모의고사의 학생명단을 먼저 업로드해주세요'); return; }
-  currentAssignRoom = roomName;
+function runAutoAssignForRoom(roomName){
   const room = rooms[roomName];
+  if (!room || !window.importedStudents) return { success:false };
   const sections = buildSectionSeatLists(room);
   const seatKeys = sections[0] || [];
 
@@ -1225,14 +1227,20 @@ function autoAssign(){
   } else if (room.filterType === 'gender') {
     students = students.filter(s => (s.gender||'').trim().startsWith(room.filterValue));
   }
-  if (room.filterType !== 'none' && students.length === 0) {
-    alert(`이 강의실의 기본 배정 대상(${room.filterType==='ban'?room.filterValue+'반':room.filterValue==='남'?'남자':'여자'})에 해당하는 학생이 명단에 없습니다.`);
-    return;
-  }
+  if (room.filterType !== 'none' && students.length === 0) return { success:false, empty:true };
 
-  // 분단(남녀 분리)은 현재 사용하지 않음 — 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로만 채움
-  const comboOrder = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
-  const sorted = students.slice().sort((a,b)=> comboOrder.indexOf(a.combo)-comboOrder.indexOf(b.combo) || a.ban.localeCompare(b.ban,'ko') || a.name.localeCompare(b.name,'ko'));
+  let sorted;
+  if (room.filterType === 'gender') {
+    // 성별로 거른 강의실은 반 순서대로 채움
+    sorted = students.slice().sort((a,b)=> {
+      const ba = parseInt(a.ban)||0, bb = parseInt(b.ban)||0;
+      return ba-bb || a.name.localeCompare(b.name,'ko');
+    });
+  } else {
+    // 그 외(반 지정/없음)는 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채움
+    const comboOrder = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
+    sorted = students.slice().sort((a,b)=> comboOrder.indexOf(a.combo)-comboOrder.indexOf(b.combo) || a.ban.localeCompare(b.ban,'ko') || a.name.localeCompare(b.name,'ko'));
+  }
 
   const seatAssign = {};
   const unplaced = [];
@@ -1244,8 +1252,37 @@ function autoAssign(){
   seatAssignByRoom[roomName] = seatAssign;
   unplacedByRoom[roomName] = unplaced;
   totalByRoom[roomName] = students.length;
+  return { success:true, assigned: Object.keys(seatAssign).length, unplaced: unplaced.length };
+}
+
+// 기본 배정 대상(반/성별)이 설정된 모든 강의실에 자동으로 배치 (엑셀 업로드 직후 호출)
+function autoAssignAllFilteredRooms(){
+  const targets = Object.keys(rooms).filter(n => rooms[n].filterType && rooms[n].filterType !== 'none');
+  let assignedRooms = 0;
+  targets.forEach(n => {
+    const r = runAutoAssignForRoom(n);
+    if (r.success) assignedRooms++;
+  });
+  if (assignedRooms && currentAssignRoom && rooms[currentAssignRoom]) {
+    renderAssignGrid(rooms[currentAssignRoom]);
+    renderSummaryForRoom(currentAssignRoom);
+  }
+  return { assignedRooms };
+}
+
+function autoAssign(){
+  const roomName = assignRoomSelection;
+  if (!roomName || !rooms[roomName]) { alert('강의실을 먼저 선택/저장해주세요'); return; }
+  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "모의고사 설정"에서 이 모의고사의 학생명단을 먼저 업로드해주세요'); return; }
+  currentAssignRoom = roomName;
+  const room = rooms[roomName];
+  const result = runAutoAssignForRoom(roomName);
+  if (!result.success) {
+    if (result.empty) alert(`이 강의실의 기본 배정 대상(${room.filterType==='ban'?room.filterValue+'반':room.filterValue==='남'?'남자':'여자'})에 해당하는 학생이 명단에 없습니다.`);
+    return;
+  }
   renderAssignGrid(room);
-  renderSummary(students, unplaced);
+  renderSummaryForRoom(roomName);
 }
 
 function renderSummaryForRoom(name){
