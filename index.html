@@ -194,16 +194,14 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 3: ASSIGN -->
 <div class="panel active" id="panel-assign">
   <div class="s-title">좌석 배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
-  <div class="s-sub admin-only" style="display:none">규칙: 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채워 배치합니다. 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
+  <div class="s-sub admin-only" style="display:none">규칙: 반 → 성별 → 이름 순서로 채워 배치합니다. 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
   <button class="btn btn-primary admin-only" style="display:none" onclick="autoAssign()">자동배치 실행</button>
   <button class="btn btn-ghost admin-only" style="display:none" onclick="clearSelection()">선택 취소</button>
 
   <div id="assign-summary" class="summary-bar" style="display:none"></div>
   <div class="legend">
-    <span><span class="dot" style="background:rgba(74,134,217,.5)"></span>과탐+과탐</span>
-    <span><span class="dot" style="background:rgba(61,187,177,.6)"></span>과탐+사탐</span>
-    <span><span class="dot" style="background:rgba(241,201,74,.7)"></span>사탐+사탐</span>
-    <span><span class="dot" style="background:rgba(229,83,75,.4)"></span>미분류</span>
+    <span><span class="dot" style="background:rgba(74,134,217,.5)"></span>남자</span>
+    <span><span class="dot" style="background:rgba(241,201,74,.7)"></span>여자</span>
   </div>
   <div class="grid-wrap" id="assign-grid"></div>
 
@@ -471,6 +469,12 @@ function comboCategory(t1, t2){
 }
 function comboClass(cat){
   return cat==='과탐+과탐'?'cat-sci':cat==='과탐+사탐'?'cat-mix':cat==='사탐+사탐'?'cat-soc':'cat-unk';
+}
+
+// 좌석 색상: 남자=파랑(cat-sci), 여자=노랑(cat-soc), 성별 미상=빨강(cat-unk)
+function genderClass(gender){
+  const g = (gender||'').trim();
+  return g.startsWith('남') ? 'cat-sci' : g.startsWith('여') ? 'cat-soc' : 'cat-unk';
 }
 
 // ── 모의고사 관리 ──
@@ -1072,7 +1076,7 @@ function buildRoomPrintHTML(roomName, version){
       if (type==='unusable') { cls += ' unusable'; inner = '비사용'; }
       else if (type==='aisle') { cls += ' gap'; }
       else if (isAssignable) {
-        if (stu) cls += ' ' + comboClass(stu.combo);
+        if (stu) cls += ' ' + genderClass(stu.gender);
         inner = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
       } else if (type==='unseatable') {
         inner = `<span class="sn">${num}</span>`;
@@ -1229,18 +1233,14 @@ function runAutoAssignForRoom(roomName){
   }
   if (room.filterType !== 'none' && students.length === 0) return { success:false, empty:true };
 
-  let sorted;
-  if (room.filterType === 'gender') {
-    // 성별로 거른 강의실은 반 순서대로 채움
-    sorted = students.slice().sort((a,b)=> {
-      const ba = parseInt(a.ban)||0, bb = parseInt(b.ban)||0;
-      return ba-bb || a.name.localeCompare(b.name,'ko');
-    });
-  } else {
-    // 그 외(반 지정/없음)는 탐구조합(과탐+과탐 → 과탐+사탐 → 사탐+사탐 → 미분류) 순서로 채움
-    const comboOrder = ['과탐+과탐','과탐+사탐','사탐+사탐','미분류'];
-    sorted = students.slice().sort((a,b)=> comboOrder.indexOf(a.combo)-comboOrder.indexOf(b.combo) || a.ban.localeCompare(b.ban,'ko') || a.name.localeCompare(b.name,'ko'));
-  }
+  // 탐구조합 조건 없이, 반 → 성별 → 이름 순으로 정렬해서 채움
+  const sorted = students.slice().sort((a,b)=> {
+    const ba = parseInt(a.ban)||0, bb = parseInt(b.ban)||0;
+    if (ba !== bb) return ba - bb;
+    const ga = a.gender||'', gb = b.gender||'';
+    if (ga !== gb) return ga.localeCompare(gb,'ko');
+    return a.name.localeCompare(b.name,'ko');
+  });
 
   const seatAssign = {};
   const unplaced = [];
@@ -1330,7 +1330,7 @@ function renderAssignGrid(room){
       const stu = seatAssign[key];
       const num = numbers[key];
       const isAssignable = num && type!=='unseatable';
-      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?comboClass(stu.combo):''));
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?genderClass(stu.gender):''));
       div.classList.toggle('sel', key===selectedSeatKey);
       if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
