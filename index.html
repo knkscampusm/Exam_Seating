@@ -180,7 +180,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 2: ROOM SETUP -->
 <div class="panel" id="panel-room">
   <div class="s-title">강의실 배치 설정</div>
-  <div class="s-sub">"새 강의실 만들기"로 시작해서 행×열을 입력해 그리드를 생성하고, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다.</div>
+  <div class="s-sub">"새 강의실 만들기"로 시작해서 행×열을 입력해 그리드를 생성하고, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다. 자리를 하나씩 클릭해도 되고, <b>그리드 위쪽 "N열" 헤더를 클릭하면 그 열 전체를 한 번에 칠할 수 있어요</b> (한 열엔 남/여 중 한쪽만 앉혀야 할 때 편해요).</div>
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -934,6 +934,28 @@ function renderRoomGrid(){
   const numberDir = document.querySelector('input[name=numdir]:checked').value;
   const numbers = computeSeatNumbers(rows, cols, editorCellTypes, numberDir);
   const wrap = document.getElementById('room-grid-preview');
+
+  // 열 헤더: 클릭하면 그 열 전체가 현재 칠하기 모드로 한 번에 칠해짐
+  const headerRow = document.createElement('div');
+  headerRow.className = 'seat-grid';
+  headerRow.style.gridTemplateColumns = `repeat(${cols}, 64px)`;
+  headerRow.style.marginBottom = '4px';
+  for (let c=1;c<=cols;c++){
+    const h = document.createElement('div');
+    h.style.cssText = 'height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text2);background:var(--surface2);border-radius:5px;cursor:pointer';
+    h.textContent = `${c}열`;
+    h.title = '클릭하면 이 열 전체를 현재 칠하기 모드로 칠합니다';
+    h.onclick = () => {
+      const mode = document.querySelector('input[name=paintmode]:checked').value;
+      const keysInCol = [];
+      for (let r=1;r<=rows;r++) keysInCol.push(`${r}_${c}`);
+      const allAlready = keysInCol.every(k => editorCellTypes[k] === mode);
+      keysInCol.forEach(k => { if (allAlready) delete editorCellTypes[k]; else editorCellTypes[k] = mode; });
+      renderRoomGrid();
+    };
+    headerRow.appendChild(h);
+  }
+
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
   grid.style.gridTemplateColumns = `repeat(${cols}, 64px)`;
@@ -961,6 +983,7 @@ function renderRoomGrid(){
     }
   }
   wrap.innerHTML = '';
+  wrap.appendChild(headerRow);
   wrap.appendChild(grid);
 }
 
