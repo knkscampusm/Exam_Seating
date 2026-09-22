@@ -180,7 +180,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 2: ROOM SETUP -->
 <div class="panel" id="panel-room">
   <div class="s-title">강의실 배치 설정</div>
-  <div class="s-sub">"새 강의실 만들기"로 시작해서 행×열을 입력해 그리드를 생성하고, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 번호는 가로/세로 중 고른 방향으로, 비사용·통로를 건너뛰고 매겨집니다. 자리를 하나씩 클릭해도 되고, <b>그리드 위쪽 "N열" 헤더를 클릭하면 그 열 전체를 한 번에 칠할 수 있어요</b> (한 열엔 남/여 중 한쪽만 앉혀야 할 때 편해요).</div>
+  <div class="s-sub">"새 강의실 만들기"로 시작해서 행×열을 입력해 그리드를 생성하고, 사용하지 않는 자리(비사용)나 통로를 클릭해서 표시하세요. 책상에 매겨지는 <b>번호 라벨</b>은 가로/세로 중 고른 방향을 따르지만, <b>실제 학생 배정 순서는 항상 열 우선(각 열 위→아래, 그다음 옆 열)</b>이에요. 자리를 하나씩 클릭해도 되고, <b>그리드 위쪽 "N열" 헤더를 클릭하면 그 열 전체를 한 번에 칠할 수 있어요</b> (한 열엔 남/여 중 한쪽만 앉혀야 할 때 편해요).</div>
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -206,12 +206,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   </div>
   <div class="grid-wrap" id="assign-grid"></div>
 
-  <div id="unplaced-card" style="display:none">
-    <div class="card" style="margin-top:12px">
-      <div class="s-title" style="font-size:13px;color:var(--red)">배치되지 못한 학생 (좌석 부족)</div>
-      <div id="unplaced-list" style="font-size:12px;line-height:1.8"></div>
-    </div>
-  </div>
 </div>
 
 <!-- STATS PANEL -->
@@ -1113,7 +1107,7 @@ function buildRoomPrintHTML(roomName, version){
       else if (type==='aisle') { cls += ' gap'; }
       else if (isAssignable) {
         if (stu) cls += ' ' + genderClass(stu.gender);
-        inner = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
+        inner = `<span class="sn">${num}</span>${stu?`${stu.ban}${stu.group||''}<br>${stu.name}`:''}`;
       } else if (type==='unseatable') {
         inner = `<span class="sn">${num}</span>`;
       }
@@ -1228,19 +1222,16 @@ function selectRoomTab(name){
     renderAssignGrid(rooms[name]);
     const students = seatAssignByRoom[name] ? Object.values(seatAssignByRoom[name]) : [];
     if (students.length) renderSummaryForRoom(name);
-    else { document.getElementById('assign-summary').style.display='none'; document.getElementById('unplaced-card').style.display='none'; }
+    else { document.getElementById('assign-summary').style.display='none'; }
   }
 }
 
 function buildSectionSeatLists(room){
-  // 사용 가능한 좌석 전체 목록(선택한 번호 방향 순서). 비사용/통로 칸은 배정에서 제외.
+  // 사용 가능한 좌석 전체 목록. 책상 "번호 라벨"은 numberDir(가로/세로)를 따르지만,
+  // 실제 학생 배정 순서는 항상 열 우선(각 열을 위→아래로 채운 뒤 다음 열로)으로 고정합니다.
   const seats = [];
   const order = [];
-  if (room.numberDir === 'col') {
-    for (let c=1;c<=room.cols;c++) for (let r=1;r<=room.rows;r++) order.push([r,c]);
-  } else {
-    for (let r=1;r<=room.rows;r++) for (let c=1;c<=room.cols;c++) order.push([r,c]);
-  }
+  for (let c=1;c<=room.cols;c++) for (let r=1;r<=room.rows;r++) order.push([r,c]);
   order.forEach(([r,c]) => {
     const key = `${r}_${c}`;
     const t = room.cellTypes && room.cellTypes[key];
@@ -1350,24 +1341,13 @@ let totalByRoom = {};
 
 function renderSummary(students, unplaced){
   const seatAssign = get_seatAssign();
-  const counts = {'과탐+과탐':0,'과탐+사탐':0,'사탐+사탐':0,'미분류':0};
-  Object.values(seatAssign).forEach(s => counts[s.combo]++);
   const bar = document.getElementById('assign-summary');
   bar.style.display = '';
   bar.innerHTML = `
     <span>총원 <b>${students.length}</b>명</span>
     <span>배치됨 <b>${Object.keys(seatAssign).length}</b>명</span>
     <span style="color:${unplaced.length?'var(--red)':'inherit'}">미배치 <b>${unplaced.length}</b>명</span>
-    <span>과탐+과탐 <b>${counts['과탐+과탐']}</b></span>
-    <span>과탐+사탐 <b>${counts['과탐+사탐']}</b></span>
-    <span>사탐+사탐 <b>${counts['사탐+사탐']}</b></span>
-    ${counts['미분류']?`<span style="color:var(--red)">미분류 <b>${counts['미분류']}</b></span>`:''}
   `;
-  const uc = document.getElementById('unplaced-card');
-  if (unplaced.length){
-    uc.style.display='';
-    document.getElementById('unplaced-list').innerHTML = unplaced.map(s=>`${s.ban} ${s.name}(${s.sid}) — 성별:${s.gender||'미상'} / ${s.combo}`).join('<br>');
-  } else uc.style.display='none';
 }
 
 function renderAssignGrid(room){
@@ -1387,7 +1367,7 @@ function renderAssignGrid(room){
       const isAssignable = num && type!=='unseatable';
       div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?genderClass(stu.gender):''));
       if (isAssignable) {
-        div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
+        div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}${stu.group||''}<br>${stu.name}`:''}`;
         if (window.isAdmin) {
           div.draggable = true;
           div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', key); div.classList.add('dragging'); };
