@@ -145,23 +145,26 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <div class="panel" id="panel-import">
   <div class="s-title">모의고사 설정</div>
   <div class="s-sub">모의고사를 선택(또는 새로 등록)한 뒤, 그 모의고사에 쓸 학생명단 엑셀 파일을 업로드하세요. 모의고사마다 명단을 따로 관리합니다.</div>
-  <div class="card">
-    <div class="row" style="align-items:flex-end">
-      <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
-      <button class="btn btn-primary btn-sm" onclick="openAddExamModal()">+ 등록</button>
+  <div class="row" style="align-items:stretch">
+    <div class="card" style="flex:1;min-width:280px">
+      <div class="s-title" style="font-size:14px">모의고사 선택</div>
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
+        <button class="btn btn-primary btn-sm" onclick="openAddExamModal()">+ 등록</button>
+      </div>
+      <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
     </div>
-    <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
-  </div>
 
-  <div class="card">
-    <div class="s-title" style="font-size:14px">학생명단 업로드</div>
-    <div class="s-sub">선택한 모의고사에 쓸 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
-    <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
-      <div class="upload-icon">📊</div>
-      <div class="upload-text"><strong>클릭하거나 파일을 드래그</strong>하세요<br>엑셀 파일 (.xlsx, .xls)</div>
-      <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none">
+    <div class="card" style="flex:1;min-width:280px">
+      <div class="s-title" style="font-size:14px">학생명단 업로드</div>
+      <div class="s-sub">선택한 모의고사에 쓸 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
+      <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
+        <div class="upload-icon">📊</div>
+        <div class="upload-text"><strong>클릭하거나 파일을 드래그</strong>하세요<br>엑셀 파일 (.xlsx, .xls)</div>
+        <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none">
+      </div>
+      <span id="import-status" style="font-size:12px;margin-top:10px;display:block;color:var(--text2)"></span>
     </div>
-    <span id="import-status" style="font-size:12px;margin-top:10px;display:block;color:var(--text2)"></span>
   </div>
 
   <div id="preview-card" style="display:none">
@@ -173,6 +176,17 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <div class="tbl-wrap">
         <table><thead id="preview-thead"></thead><tbody id="preview-tbody"></tbody></table>
       </div>
+    </div>
+  </div>
+
+  <div id="seating-preview-section" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="s-title" style="font-size:14px;margin-bottom:0">좌석배치표</div>
+        <button class="btn btn-primary btn-sm" onclick="quickSaveSnapshot()">💾 저장</button>
+      </div>
+      <div class="s-sub">자동배치된 강의실들의 좌석배치표예요. 문제 없으면 저장을 눌러 이 모의고사에 확정 저장하세요.</div>
+      <div id="seating-preview-list"></div>
     </div>
   </div>
 </div>
@@ -574,6 +588,7 @@ function selectExam(name){
   const statusEl = document.getElementById('import-status');
   if (statusEl) statusEl.textContent = cnt ? `이 모의고사에 이미 ${cnt}명 업로드되어 있어요. 새로 올리면 덮어씁니다.` : '';
   document.getElementById('preview-card').style.display = 'none';
+  if (typeof renderSeatingPreview === 'function') renderSeatingPreview();
 }
 
 async function saveExam(){
@@ -684,6 +699,73 @@ function setImportedStudents(students){
     msg += `\n\n최종 미배치: ${result.totalUnplaced}명`;
     alert(msg);
   }
+  renderSeatingPreview();
+}
+
+function buildRoomPreviewElement(roomName){
+  const room = rooms[roomName];
+  if (!room) return null;
+  const seatAssign = seatAssignByRoom[roomName] || {};
+  const numbers = computeSeatNumbers(room.rows, room.cols, room.cellTypes||{}, room.numberDir||'row');
+  const wrap = document.createElement('div');
+  wrap.style.marginBottom = '20px';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-weight:700;font-size:13px;margin-bottom:8px';
+  title.textContent = `${roomName} (배정 ${Object.keys(seatAssign).length}명)`;
+  wrap.appendChild(title);
+  const grid = document.createElement('div');
+  grid.className = 'seat-grid';
+  grid.style.gridTemplateColumns = `repeat(${room.cols}, 64px)`;
+  for (let r=1;r<=room.rows;r++){
+    for (let c=1;c<=room.cols;c++){
+      const key = `${r}_${c}`;
+      const type = (room.cellTypes||{})[key];
+      const num = numbers[key];
+      const stu = seatAssign[key];
+      const isAssignable = num && type!=='unseatable';
+      const div = document.createElement('div');
+      div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?genderClass(stu.gender):''));
+      if (isAssignable) div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}${stu.group||''}<br>${stu.name}`:''}`;
+      else if (type==='unseatable') div.innerHTML = `<span class="sn">${num}</span>`;
+      grid.appendChild(div);
+    }
+  }
+  const gridWrap = document.createElement('div');
+  gridWrap.className = 'grid-wrap';
+  gridWrap.appendChild(grid);
+  wrap.appendChild(gridWrap);
+  return wrap;
+}
+
+function renderSeatingPreview(){
+  const section = document.getElementById('seating-preview-section');
+  const list = document.getElementById('seating-preview-list');
+  if (!section || !list) return;
+  const names = Object.keys(rooms).filter(n => seatAssignByRoom[n] && Object.keys(seatAssignByRoom[n]).length > 0);
+  if (!names.length) { section.style.display = 'none'; return; }
+  list.innerHTML = '';
+  names.forEach(n => { const el = buildRoomPreviewElement(n); if (el) list.appendChild(el); });
+  section.style.display = '';
+}
+
+async function quickSaveSnapshot(){
+  if (!selectedExam || !selectedExam.name) { alert('모의고사를 먼저 선택해주세요'); return; }
+  if (!db) return;
+  try {
+    const roomsData = {};
+    Object.keys(rooms).forEach(rn => {
+      const room = rooms[rn];
+      roomsData[rn] = {
+        rows: room.rows, cols: room.cols, cuts: room.cuts, cellTypes: room.cellTypes, numberDir: room.numberDir,
+        seatAssign: seatAssignByRoom[rn] || {}
+      };
+    });
+    await db.collection('examSeatingSnapshots').add({
+      name: selectedExam.name, savedAt: firebase.firestore.FieldValue.serverTimestamp(), savedAtStr: new Date().toLocaleString('ko-KR'),
+      rooms: roomsData
+    });
+    alert(`"${selectedExam.name}" 배치를 저장했어요.`);
+  } catch(e) { alert('저장 실패: ' + e.message); }
 }
 
 // 시험일과 등원일이 같은 학생을 걸러내 확인 모달을 띄우고, 그 결과를 반영해 최종 명단 확정
