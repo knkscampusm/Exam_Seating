@@ -197,9 +197,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <!-- TAB 3: ASSIGN -->
 <div class="panel active" id="panel-assign">
   <div class="s-title">좌석 배치 — <span id="assign-room-title" style="color:var(--accent2)">강의실을 선택해주세요</span></div>
-  <div class="s-sub admin-only" style="display:none">규칙: 반 → 성별 → 이름 순서로 채워 배치합니다. 자리를 클릭 → 다른 자리 클릭하거나 드래그하면 서로 자리를 바꿀 수 있어요.</div>
-  <button class="btn btn-primary admin-only" style="display:none" onclick="autoAssign()">자동배치 실행</button>
-  <button class="btn btn-ghost admin-only" style="display:none" onclick="clearSelection()">선택 취소</button>
+  <div class="s-sub admin-only" style="display:none">모의고사 설정에서 학생명단을 업로드하면 기본 배정 대상(반/성별)에 맞춰 자동으로 배치됩니다. 자리를 서로 바꾸려면 학생을 드래그해서 다른 자리에 놓으세요.</div>
 
   <div id="assign-summary" class="summary-bar" style="display:none"></div>
   <div class="legend">
@@ -1298,21 +1296,6 @@ function autoAssignAllFilteredRooms(){
   return { assignedRooms };
 }
 
-function autoAssign(){
-  const roomName = assignRoomSelection;
-  if (!roomName || !rooms[roomName]) { alert('강의실을 먼저 선택/저장해주세요'); return; }
-  if (!window.importedStudents || window.importedStudents.length===0) { alert('관리자 모드 → "모의고사 설정"에서 이 모의고사의 학생명단을 먼저 업로드해주세요'); return; }
-  currentAssignRoom = roomName;
-  const room = rooms[roomName];
-  const result = runAutoAssignForRoom(roomName);
-  if (!result.success) {
-    if (result.empty) alert(`이 강의실의 기본 배정 대상(${room.filterType==='ban'?room.filterValue+'반':room.filterValue==='남'?'남자':'여자'})에 해당하는 학생이 명단에 없습니다.`);
-    return;
-  }
-  renderAssignGrid(room);
-  renderSummaryForRoom(roomName);
-}
-
 function renderSummaryForRoom(name){
   const unplaced = unplacedByRoom[name] || [];
   const total = totalByRoom[name] || (Object.keys(seatAssignByRoom[name]||{}).length + unplaced.length);
@@ -1359,11 +1342,9 @@ function renderAssignGrid(room){
       const num = numbers[key];
       const isAssignable = num && type!=='unseatable';
       div.className = 'seat ' + (type==='unusable' ? 'unusable' : type==='aisle' ? 'gap' : (stu?genderClass(stu.gender):''));
-      div.classList.toggle('sel', key===selectedSeatKey);
       if (isAssignable) {
         div.innerHTML = `<span class="sn">${num}</span>${stu?`${stu.ban}<br>${stu.name}`:''}`;
         if (window.isAdmin) {
-          div.onclick = () => onSeatClick(key);
           div.draggable = true;
           div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', key); div.classList.add('dragging'); };
           div.ondragend = () => div.classList.remove('dragging');
@@ -1378,7 +1359,6 @@ function renderAssignGrid(room){
             const a = sa[srcKey], b = sa[key];
             if (a) sa[key] = a; else delete sa[key];
             if (b) sa[srcKey] = b; else delete sa[srcKey];
-            selectedSeatKey = null;
             renderAssignGrid(rooms[currentAssignRoom]);
           };
         }
@@ -1396,19 +1376,7 @@ function renderAssignGrid(room){
   wrap.appendChild(grid);
 }
 
-function onSeatClick(key){
-  const seatAssign = get_seatAssign();
-  if (!selectedSeatKey) { selectedSeatKey = key; }
-  else if (selectedSeatKey === key) { selectedSeatKey = null; }
-  else {
-    const a = seatAssign[selectedSeatKey], b = seatAssign[key];
-    if (a) seatAssign[key]=a; else delete seatAssign[key];
-    if (b) seatAssign[selectedSeatKey]=b; else delete seatAssign[selectedSeatKey];
-    selectedSeatKey = null;
-  }
-  renderAssignGrid(rooms[currentAssignRoom]);
-}
-function clearSelection(){ selectedSeatKey = null; renderAssignGrid(rooms[currentAssignRoom]); }
+
 
 // ── INIT ──
 loadRoomList();
