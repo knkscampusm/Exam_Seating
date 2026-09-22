@@ -54,7 +54,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:var(--surface2);color:var(--text2);font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
 td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--text);white-space:nowrap}
 .notice{padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;margin-bottom:14px}
-.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
 .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(43,173,160,.04)}
 .upload-icon{font-size:26px;margin-bottom:8px}
 .upload-text{color:var(--text2);line-height:1.8;font-size:13px}
@@ -146,7 +146,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div class="s-title">모의고사 설정</div>
   <div class="s-sub">모의고사를 선택(또는 새로 등록)한 뒤, 그 모의고사에 쓸 학생명단 엑셀 파일을 업로드하세요. 모의고사마다 명단을 따로 관리합니다.</div>
   <div class="row" style="align-items:stretch">
-    <div class="card" style="flex:1;min-width:280px">
+    <div class="card" style="flex:1 1 0;min-width:0">
       <div class="s-title" style="font-size:14px">모의고사 선택</div>
       <div class="row" style="align-items:flex-end">
         <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
@@ -155,7 +155,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
     </div>
 
-    <div class="card" style="flex:1;min-width:280px">
+    <div class="card" style="flex:1 1 0;min-width:0">
       <div class="s-title" style="font-size:14px">학생명단 업로드</div>
       <div class="s-sub">선택한 모의고사에 쓸 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
       <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
@@ -167,17 +167,6 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
     </div>
   </div>
 
-  <div id="preview-card" style="display:none">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:13px;font-weight:600" id="preview-label"></div>
-        <button class="btn btn-ghost btn-sm" onclick="goToAssignView()">좌석배치로 이동 →</button>
-      </div>
-      <div class="tbl-wrap">
-        <table><thead id="preview-thead"></thead><tbody id="preview-tbody"></tbody></table>
-      </div>
-    </div>
-  </div>
 
   <div id="seating-preview-section" style="display:none">
     <div class="card">
@@ -186,6 +175,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
         <button class="btn btn-primary btn-sm" onclick="quickSaveSnapshot()">💾 저장</button>
       </div>
       <div class="s-sub">자동배치된 강의실들의 좌석배치표예요. 문제 없으면 저장을 눌러 이 모의고사에 확정 저장하세요.</div>
+      <div class="room-list" id="seating-preview-tabs"></div>
       <div id="seating-preview-list"></div>
     </div>
   </div>
@@ -587,7 +577,6 @@ function selectExam(name){
     `선택됨: ${name} (시험일: ${selectedExam.date || '미지정'}) — 업로드된 학생 ${cnt}명`;
   const statusEl = document.getElementById('import-status');
   if (statusEl) statusEl.textContent = cnt ? `이 모의고사에 이미 ${cnt}명 업로드되어 있어요. 새로 올리면 덮어씁니다.` : '';
-  document.getElementById('preview-card').style.display = 'none';
   if (typeof renderSeatingPreview === 'function') renderSeatingPreview();
 }
 
@@ -737,15 +726,24 @@ function buildRoomPreviewElement(roomName){
   return wrap;
 }
 
+let seatingPreviewSelected = null;
 function renderSeatingPreview(){
   const section = document.getElementById('seating-preview-section');
+  const tabsEl = document.getElementById('seating-preview-tabs');
   const list = document.getElementById('seating-preview-list');
   if (!section || !list) return;
   const names = Object.keys(rooms).filter(n => seatAssignByRoom[n] && Object.keys(seatAssignByRoom[n]).length > 0);
   if (!names.length) { section.style.display = 'none'; return; }
+  if (!seatingPreviewSelected || !names.includes(seatingPreviewSelected)) seatingPreviewSelected = names[0];
+  tabsEl.innerHTML = names.map(n => `<div class="room-chip ${n===seatingPreviewSelected?'active':''}" onclick="selectSeatingPreviewTab('${n.replace(/'/g,"\\'")}')">${n}</div>`).join('');
   list.innerHTML = '';
-  names.forEach(n => { const el = buildRoomPreviewElement(n); if (el) list.appendChild(el); });
+  const el = buildRoomPreviewElement(seatingPreviewSelected);
+  if (el) list.appendChild(el);
   section.style.display = '';
+}
+function selectSeatingPreviewTab(name){
+  seatingPreviewSelected = name;
+  renderSeatingPreview();
 }
 
 async function quickSaveSnapshot(){
@@ -811,13 +809,8 @@ function confirmEnrollModal(){
 }
 
 function renderPreview(students){
-  document.getElementById('preview-label').textContent = `총 ${students.length}명 가져옴`;
-  document.getElementById('preview-thead').innerHTML = `<tr><th>반</th><th>그룹</th><th>학번</th><th>이름</th><th>성별</th><th>등원일</th><th>탐구1</th><th>탐구2</th><th>조합</th></tr>`;
-  document.getElementById('preview-tbody').innerHTML = students.slice(0,200).map(s=>`<tr>
-    <td>${s.ban}</td><td>${s.group}</td><td>${s.sid}</td><td>${s.name}</td><td>${s.gender}</td><td>${s.enrollDate||''}</td><td>${s.subj1}</td><td>${s.subj2}</td>
-    <td><span style="padding:2px 6px;border-radius:4px" class="${comboClass(s.combo)}">${s.combo}</span></td>
-  </tr>`).join('') + (students.length>200?`<tr><td colspan="9" style="text-align:center;color:var(--text3)">... 외 ${students.length-200}명</td></tr>`:'');
-  document.getElementById('preview-card').style.display = '';
+  const statusEl = document.getElementById('import-status');
+  if (statusEl) statusEl.textContent = `✓ 총 ${students.length}명 가져옴`;
 }
 
 // ── TAB2: 강의실 설정 ──
