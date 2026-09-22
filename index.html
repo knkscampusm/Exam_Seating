@@ -18,9 +18,9 @@
 }
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
-.subbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:42px;display:flex;align-items:center;position:sticky;top:52px;z-index:99;overflow-x:auto}
+.subbar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;min-height:42px;display:flex;align-items:center;flex-wrap:wrap;gap:4px 0;position:sticky;top:52px;z-index:99}
 .logo{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:-0.3px;white-space:nowrap}
-.tabs{display:flex;gap:2px}
+.tabs{display:flex;gap:2px;flex-wrap:wrap}
 .tab{padding:6px 16px;border-radius:6px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;border:1px solid transparent;white-space:nowrap}
 .tab:hover{color:var(--text);background:var(--surface2)}
 .tab.active{color:var(--accent);background:rgba(61,187,177,.08);border-color:rgba(61,187,177,.25);font-weight:600}
@@ -54,10 +54,10 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:var(--surface2);color:var(--text2);font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
 td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--text);white-space:nowrap}
 .notice{padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;margin-bottom:14px}
-.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:12px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
 .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(43,173,160,.04)}
-.upload-icon{font-size:26px;margin-bottom:8px}
-.upload-text{color:var(--text2);line-height:1.8;font-size:13px}
+.upload-icon{font-size:20px;margin-bottom:4px}
+.upload-text{color:var(--text2);line-height:1.6;font-size:12px}
 .upload-text strong{color:var(--accent)}
 .notice-info{background:rgba(61,187,177,.08);border:1px solid rgba(61,187,177,.2);color:var(--accent2)}
 .notice-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#b8860b}
@@ -135,7 +135,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <div class="subbar no-print">
   <div class="tabs" id="header-tabs">
     <div class="tab" data-tabid="stats" onclick="selectStatsTab()">📊 통계</div>
-    <div id="room-tabs-header" style="display:flex;gap:2px"></div>
+    <div id="room-tabs-header" style="display:flex;gap:2px;flex-wrap:wrap"></div>
   </div>
 </div>
 
@@ -145,7 +145,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
 <div class="panel" id="panel-import">
   <div class="s-title">모의고사 설정</div>
   <div class="s-sub">모의고사를 선택(또는 새로 등록)한 뒤, 그 모의고사에 쓸 학생명단 엑셀 파일을 업로드하세요. 모의고사마다 명단을 따로 관리합니다.</div>
-  <div class="row" style="align-items:stretch">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch">
     <div class="card" style="flex:1 1 0;min-width:0">
       <div class="s-title" style="font-size:14px">모의고사 선택</div>
       <div class="row" style="align-items:flex-end">
