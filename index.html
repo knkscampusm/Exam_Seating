@@ -949,8 +949,11 @@ function renderRoomGrid(){
       const mode = document.querySelector('input[name=paintmode]:checked').value;
       const keysInCol = [];
       for (let r=1;r<=rows;r++) keysInCol.push(`${r}_${c}`);
-      const allAlready = keysInCol.every(k => editorCellTypes[k] === mode);
-      keysInCol.forEach(k => { if (allAlready) delete editorCellTypes[k]; else editorCellTypes[k] = mode; });
+      // 남/여 구역을 열 단위로 칠할 때는 이미 비사용·통로로 표시된 자리는 건너뛰고 덮어쓰지 않음
+      const skipTypes = (mode==='male' || mode==='female') ? ['unusable','aisle'] : [];
+      const targetKeys = keysInCol.filter(k => !skipTypes.includes(editorCellTypes[k]));
+      const allAlready = targetKeys.length>0 && targetKeys.every(k => editorCellTypes[k] === mode);
+      targetKeys.forEach(k => { if (allAlready) delete editorCellTypes[k]; else editorCellTypes[k] = mode; });
       renderRoomGrid();
     };
     headerRow.appendChild(h);
