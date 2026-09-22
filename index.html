@@ -148,8 +148,8 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch">
     <div class="card" style="min-width:0;height:100%;box-sizing:border-box;display:flex;flex-direction:column">
       <div class="s-title" style="font-size:14px">모의고사 선택</div>
-      <div class="row" style="align-items:flex-end">
-        <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
+      <div class="row" style="align-items:center">
+        <div class="field" style="flex:1"><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
         <button class="btn btn-primary btn-sm" onclick="openAddExamModal()">+ 등록</button>
       </div>
       <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
@@ -574,7 +574,7 @@ function selectExam(name){
   window.importedStudents = studentsByExam[name] || [];
   const cnt = window.importedStudents.length;
   document.getElementById('exam-selected-info').textContent =
-    `선택됨: ${name} (시험일: ${selectedExam.date || '미지정'}) — 업로드된 학생 ${cnt}명`;
+    `업로드된 학생 ${cnt}명`;
   const statusEl = document.getElementById('import-status');
   if (statusEl) statusEl.textContent = cnt ? `이 모의고사에 이미 ${cnt}명 업로드되어 있어요. 새로 올리면 덮어씁니다.` : '';
   if (typeof renderSeatingPreview === 'function') renderSeatingPreview();
