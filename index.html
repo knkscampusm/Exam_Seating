@@ -685,7 +685,10 @@ function setImportedStudents(students){
   const result = autoAssignAllFilteredRooms();
   if (result.assignedRooms) {
     const statusEl = document.getElementById('import-status');
-    if (statusEl) statusEl.textContent += ` · 기본 배정 대상이 설정된 강의실 ${result.assignedRooms}개에 자동배치 완료`;
+    if (statusEl) statusEl.textContent += ` · 강의실 ${result.assignedRooms}개에 자동배치 완료`;
+    let msg = '📋 자동배치 결과\n\n' + result.summaryLines.join('\n');
+    msg += `\n\n최종 미배치: ${result.totalUnplaced}명`;
+    alert(msg);
   }
 }
 
@@ -1225,21 +1228,13 @@ let currentAssignRoom = null;
 let selectedSeatKey = null;
 function get_seatAssign(){ return seatAssignByRoom[currentAssignRoom] || (seatAssignByRoom[currentAssignRoom] = {}); }
 
-function runAutoAssignForRoom(roomName){
+// studentPool을 그 강의실 좌석에 채움 (반→성별→이름 순 정렬, 남/여 구역 지원). 못 채운 인원은 overflow로 반환.
+function assignStudentsToRoom(roomName, studentPool){
   const room = rooms[roomName];
-  if (!room || !window.importedStudents) return { success:false };
+  if (!room) return { assignedCount:0, overflow: studentPool };
   const sections = buildSectionSeatLists(room);
   const seatKeys = sections[0] || [];
 
-  let students = window.importedStudents.slice();
-  if (room.filterType === 'ban') {
-    students = students.filter(s => String(s.ban).trim() === String(room.filterValue).trim());
-  } else if (room.filterType === 'gender') {
-    students = students.filter(s => (s.gender||'').trim().startsWith(room.filterValue));
-  }
-  if (room.filterType !== 'none' && students.length === 0) return { success:false, empty:true };
-
-  // 탐구조합 조건 없이, 반 → 성별 → 이름 순으로 정렬
   const sortFn = (a,b)=> {
     const ba = parseInt(a.ban)||0, bb = parseInt(b.ban)||0;
     if (ba !== bb) return ba - bb;
@@ -1254,46 +1249,67 @@ function runAutoAssignForRoom(roomName){
   const freeSeats = seatKeys.filter(k => cellTypes[k] !== 'male' && cellTypes[k] !== 'female');
 
   const seatAssign = {};
-  let unplaced = [];
   function fillInOrder(seats, list){
     const over = [];
     list.forEach((stu, idx) => { if (idx < seats.length) seatAssign[seats[idx]] = stu; else over.push(stu); });
     return over;
   }
 
+  let overflow;
   if (maleSeats.length || femaleSeats.length) {
-    // 남/여 구역이 지정된 강의실: 남 구역엔 남학생, 여 구역엔 여학생 먼저 채우고, 넘치는 인원은 자유석으로
-    const maleStu = students.filter(s => (s.gender||'').trim().startsWith('남')).sort(sortFn);
-    const femaleStu = students.filter(s => (s.gender||'').trim().startsWith('여')).sort(sortFn);
-    const otherStu = students.filter(s => { const g=(s.gender||'').trim(); return !g.startsWith('남') && !g.startsWith('여'); }).sort(sortFn);
+    const maleStu = studentPool.filter(s => (s.gender||'').trim().startsWith('남')).sort(sortFn);
+    const femaleStu = studentPool.filter(s => (s.gender||'').trim().startsWith('여')).sort(sortFn);
+    const otherStu = studentPool.filter(s => { const g=(s.gender||'').trim(); return !g.startsWith('남') && !g.startsWith('여'); }).sort(sortFn);
     const overflowMale = fillInOrder(maleSeats, maleStu);
     const overflowFemale = fillInOrder(femaleSeats, femaleStu);
     const leftover = [...overflowMale, ...overflowFemale, ...otherStu].sort(sortFn);
-    unplaced = fillInOrder(freeSeats, leftover);
+    overflow = fillInOrder(freeSeats, leftover);
   } else {
-    const sorted = students.slice().sort(sortFn);
-    unplaced = fillInOrder(freeSeats, sorted);
+    const sorted = studentPool.slice().sort(sortFn);
+    overflow = fillInOrder(freeSeats, sorted);
   }
 
   seatAssignByRoom[roomName] = seatAssign;
-  unplacedByRoom[roomName] = unplaced;
-  totalByRoom[roomName] = students.length;
-  return { success:true, assigned: Object.keys(seatAssign).length, unplaced: unplaced.length };
+  unplacedByRoom[roomName] = overflow;
+  totalByRoom[roomName] = studentPool.length;
+  return { assignedCount: Object.keys(seatAssign).length, overflow };
 }
 
-// 기본 배정 대상(반/성별)이 설정된 모든 강의실에 자동으로 배치 (엑셀 업로드 직후 호출)
+// 기본 배정 대상(반/성별)이 설정된 모든 강의실에 순서대로 자동배치 (엑셀 업로드 직후 호출)
+// 1단계: 반-강의실부터 채움. 2단계: 반이 안 맞거나 반-강의실에서 넘친 학생을 성별-강의실에 채움.
 function autoAssignAllFilteredRooms(){
-  const targets = Object.keys(rooms).filter(n => rooms[n].filterType && rooms[n].filterType !== 'none');
-  let assignedRooms = 0;
-  targets.forEach(n => {
-    const r = runAutoAssignForRoom(n);
-    if (r.success) assignedRooms++;
+  const allNames = Object.keys(rooms);
+  const banRooms = allNames.filter(n => rooms[n].filterType === 'ban');
+  const genderRooms = allNames.filter(n => rooms[n].filterType === 'gender');
+  if (!banRooms.length && !genderRooms.length) return { assignedRooms:0, summaryLines:[], totalUnplaced:0 };
+
+  let pool = (window.importedStudents || []).slice();
+  const summaryLines = [];
+
+  banRooms.forEach(roomName => {
+    const room = rooms[roomName];
+    const matched = pool.filter(s => String(s.ban).trim() === String(room.filterValue).trim());
+    const notMatched = pool.filter(s => String(s.ban).trim() !== String(room.filterValue).trim());
+    const { assignedCount, overflow } = assignStudentsToRoom(roomName, matched);
+    pool = [...notMatched, ...overflow];
+    summaryLines.push(`${roomName} (${room.filterValue}반): ${assignedCount}명`);
   });
-  if (assignedRooms && currentAssignRoom && rooms[currentAssignRoom]) {
+
+  genderRooms.forEach(roomName => {
+    const room = rooms[roomName];
+    const matched = pool.filter(s => (s.gender||'').trim().startsWith(room.filterValue));
+    const notMatched = pool.filter(s => !(s.gender||'').trim().startsWith(room.filterValue));
+    const { assignedCount, overflow } = assignStudentsToRoom(roomName, matched);
+    pool = [...notMatched, ...overflow];
+    summaryLines.push(`${roomName} (${room.filterValue==='남'?'남자':'여자'}): ${assignedCount}명`);
+  });
+
+  if (currentAssignRoom && rooms[currentAssignRoom]) {
     renderAssignGrid(rooms[currentAssignRoom]);
     renderSummaryForRoom(currentAssignRoom);
   }
-  return { assignedRooms };
+
+  return { assignedRooms: banRooms.length + genderRooms.length, summaryLines, totalUnplaced: pool.length };
 }
 
 function renderSummaryForRoom(name){
