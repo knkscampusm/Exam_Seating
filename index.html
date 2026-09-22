@@ -146,7 +146,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
   <div class="s-title">모의고사 설정</div>
   <div class="s-sub">모의고사를 선택(또는 새로 등록)한 뒤, 그 모의고사에 쓸 학생명단 엑셀 파일을 업로드하세요. 모의고사마다 명단을 따로 관리합니다.</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch">
-    <div class="card" style="flex:1 1 0;min-width:0">
+    <div class="card" style="min-width:0;height:100%;box-sizing:border-box;display:flex;flex-direction:column">
       <div class="s-title" style="font-size:14px">모의고사 선택</div>
       <div class="row" style="align-items:flex-end">
         <div class="field" style="flex:1"><label class="field-label">모의고사</label><select id="exam-select" style="width:100%" onchange="selectExam(this.value)"></select></div>
@@ -155,7 +155,7 @@ td{padding:8px 12px;border-bottom:1px solid rgba(226,224,216,.5);color:var(--tex
       <div class="notice notice-info" style="margin-top:12px" id="exam-selected-info">선택된 모의고사가 없습니다.</div>
     </div>
 
-    <div class="card" style="flex:1 1 0;min-width:0">
+    <div class="card" style="min-width:0;height:100%;box-sizing:border-box;display:flex;flex-direction:column">
       <div class="s-title" style="font-size:14px">학생명단 업로드</div>
       <div class="s-sub">선택한 모의고사에 쓸 엑셀 파일(.xlsx, .xls)을 업로드하세요. "raw"라는 이름의 시트(탭)를 찾아서 읽고, 없으면 첫 번째 시트를 읽습니다.</div>
       <div class="upload-zone" id="excel-upload-zone" onclick="document.getElementById('excel-file-input').click()">
